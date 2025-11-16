@@ -4,44 +4,65 @@ import { View, TextInput, Text, StyleSheet, TextInputProps } from 'react-native'
 import { useTheme } from '../../contexts/ThemeProvider';
 
 interface InputProps extends TextInputProps {
-  label?: string; // <-- Làm cho label không bắt buộc
+  label?: string;
   leftIcon?: React.ReactNode;
+  rightAdornment?: React.ReactNode; // <-- thêm prop mới
 }
 
-export function Input({ label, style, leftIcon, multiline, ...props }: InputProps) {
+export function Input({ 
+  label, 
+  style, 
+  leftIcon, 
+  rightAdornment, // <-- nhận thêm
+  multiline, 
+  ...props 
+}: InputProps) {
   const { colors, typography } = useTheme();
 
   return (
     <View style={styles.container}>
-      {label && ( // <-- Chỉ hiển thị nếu có label
+      {label && (
         <Text style={[typography.p, styles.label, { color: colors.foreground }]}>
           {label}
         </Text>
       )}
+
       <View
         style={[
           styles.inputContainer,
           {
             backgroundColor: colors.input,
             borderColor: colors.border,
-            paddingLeft: leftIcon ? 40 : 16, // <-- Thêm padding nếu có icon
-            height: multiline ? 100 : 50, // <-- Hỗ trợ multiline
-            paddingTop: multiline ? 12 : 0, // <-- Thêm padding top cho multiline
+            paddingLeft: leftIcon ? 40 : 16,
+            paddingRight: rightAdornment ? 40 : 16, // <-- chừa chỗ cho icon bên phải
+            height: multiline ? 100 : 50,
+            paddingTop: multiline ? 12 : 0,
           },
         ]}
       >
-        {leftIcon && <View style={styles.iconContainer}>{leftIcon}</View>}
+        {/* Left Icon */}
+        {leftIcon && <View style={styles.leftIconContainer}>{leftIcon}</View>}
+
+        {/* Text Input */}
         <TextInput
           style={[
             typography.body,
             styles.input,
-            { color: colors.foreground, textAlignVertical: multiline ? 'top' : 'center' },
+            {
+              color: colors.foreground,
+              textAlignVertical: multiline ? 'top' : 'center',
+            },
             style,
           ]}
           placeholderTextColor={colors.mutedForeground}
           multiline={multiline}
           {...props}
         />
+
+        {/* Right Adornment */}
+        {rightAdornment && (
+          <View style={styles.rightAdornmentContainer}>{rightAdornment}</View>
+        )}
       </View>
     </View>
   );
@@ -60,10 +81,18 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center',
+    position: 'relative',
   },
-  iconContainer: {
+  leftIconContainer: {
     position: 'absolute',
     left: 12,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+  },
+  rightAdornmentContainer: {
+    position: 'absolute',
+    right: 12,
     top: 0,
     bottom: 0,
     justifyContent: 'center',
