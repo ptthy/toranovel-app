@@ -44,9 +44,8 @@ export function Button({
 
   // Style cho nút 'outline' (nút viền)
   const outlineButton: ViewStyle = {
-    backgroundColor: 'transparent',
-    borderColor: colors.primary,
-    borderWidth: 2,
+    backgroundColor: colors.card, 
+    borderColor: colors.border, 
     height: 50,
     borderRadius: 12,
   };
