@@ -1,5 +1,4 @@
-// src/screens/auth/SignUpScreen.tsx
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -8,37 +7,94 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useTheme } from '../../contexts/ThemeProvider';
-import { Button } from '../../components/ui/Button';
-import { Input } from '../../components/ui/Input';
-import { ArrowLeft } from 'lucide-react-native';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useTheme } from "../../contexts/ThemeProvider";
+import { Button } from "../../components/ui/Button";
+import { Input } from "../../components/ui/Input";
+import { ArrowLeft } from "lucide-react-native";
+import { Eye, EyeOff } from "lucide-react-native";
+// 1. Import hook, type và service
+import { useNavigation } from "@react-navigation/native";
+import { AuthScreenProps } from "../../navigation/types";
 
-// Tạm thời
-type SignUpScreenProps = {
-  // onNavigate: (page: string) => void;
-};
+import axios from "axios";
+import { authService } from "../../api/authService";
 
-export function SignUpScreen({}: SignUpScreenProps) {
+export function SignUpScreen() {
   const { colors, typography } = useTheme();
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+
+  const navigation = useNavigation<AuthScreenProps<"SignUp">["navigation"]>();
+
+  // 2. Thêm state cho form và loading
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // 3. Tạo hàm handleSignUp
+  const handleSignUp = async () => {
+    if (isLoading) return;
+
+    // Kiểm tra mật khẩu khớp
+    if (password !== confirmPassword) {
+      setError("Mật khẩu không khớp.");
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Gọi API đăng ký
+      await authService.register({
+        username,
+        email,
+        password,
+        confirmPassword,
+      });
+
+      navigation.navigate("OTP", { email: email });
+    } catch (e) {
+      if (axios.isAxiosError(e)) {
+        // Lấy lỗi từ backend (ví dụ: "Email đã tồn tại")
+        const apiError =
+          e.response?.data?.message || "Đăng ký thất bại. Vui lòng thử lại.";
+        setError(apiError);
+      } else {
+        setError("Đã xảy ra lỗi. Vui lòng thử lại.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+    >
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
       >
         {/* 1. Header */}
         <View style={styles.header}>
-          <TouchableOpacity /* onPress={() => onNavigate('welcome')} */ style={styles.backButton}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}
+          >
             <ArrowLeft size={24} color={colors.foreground} />
           </TouchableOpacity>
-          <Text style={[typography.h2, { color: colors.foreground }]}>Đăng ký</Text>
+          <Text style={[typography.h2, { color: colors.foreground }]}>
+            Đăng ký
+          </Text>
         </View>
 
         {/* 2. Form */}
@@ -66,30 +122,59 @@ export function SignUpScreen({}: SignUpScreenProps) {
             placeholder="••••••••"
             value={password}
             onChangeText={setPassword}
-            secureTextEntry
+            secureTextEntry={!showPassword}
+            rightAdornment={
+              <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                {showPassword ? (
+                  <EyeOff size={20} color={colors.mutedForeground} />
+                ) : (
+                  <Eye size={20} color={colors.mutedForeground} />
+                )}
+              </TouchableOpacity>
+            }
           />
+
           <Input
             label="Xác nhận mật khẩu"
             placeholder="••••••••"
             value={confirmPassword}
             onChangeText={setConfirmPassword}
-            secureTextEntry
+            secureTextEntry={!showConfirmPassword}
+            rightAdornment={
+              <TouchableOpacity
+                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+              >
+                {showConfirmPassword ? (
+                  <EyeOff size={20} color={colors.mutedForeground} />
+                ) : (
+                  <Eye size={20} color={colors.mutedForeground} />
+                )}
+              </TouchableOpacity>
+            }
           />
+
+          {error && <Text style={styles.errorText}>{error}</Text>}
 
           <Button
             title="Đăng ký"
             variant="primary"
-            // onPress={handleSignUp}
+            onPress={handleSignUp}
+            loading={isLoading}
             style={{ marginTop: 16 }}
           />
 
-          {/* 3. Nút chuyển sang Sign In */}
+          {/* 7. Nút chuyển sang Sign In */}
           <View style={styles.footerNav}>
             <Text style={[typography.p, { color: colors.mutedForeground }]}>
-              Đã có tài khoản?{' '}
+              Đã có tài khoản?{" "}
             </Text>
-            <TouchableOpacity /* onPress={() => onNavigate('signin')} */>
-              <Text style={[typography.p, { color: colors.accent, fontWeight: '600' }]}>
+            <TouchableOpacity onPress={() => navigation.navigate("SignIn")}>
+              <Text
+                style={[
+                  typography.p,
+                  { color: colors.accent, fontWeight: "600" },
+                ]}
+              >
                 Đăng nhập
               </Text>
             </TouchableOpacity>
@@ -105,8 +190,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 16,
@@ -118,13 +203,19 @@ const styles = StyleSheet.create({
   },
   formContainer: {
     flexGrow: 1,
-    paddingHorizontal: 24, // px-6
+    paddingHorizontal: 24,
     paddingVertical: 16,
   },
+  errorText: {
+    color: "#DC3545",
+    textAlign: "center",
+    marginBottom: 16,
+    fontSize: 14,
+  },
   footerNav: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
     marginTop: 24,
   },
 });

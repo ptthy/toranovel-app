@@ -1,17 +1,15 @@
-// Import các thư viện types
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { CompositeScreenProps } from '@react-navigation/native';
 
-// --- Định nghĩa dữ liệu truyền cho mỗi màn hình ---
-
 // 1. Luồng Đăng nhập (Auth Stack)
 export type AuthStackParamList = {
-  Welcome: undefined; // Màn hình Welcome không cần dữ liệu
+  Welcome: undefined;
   SignIn: undefined;
   SignUp: undefined;
-  OTP: undefined;
+  OTP: { email: string }; // <-- SỬA DÒNG NÀY (từ undefined)
   ForgotPassword: undefined;
+  ResetPassword: { email: string };
 };
 
 // 2. Luồng Chính (Main Tabs)
@@ -24,14 +22,13 @@ export type MainBottomTabParamList = {
 
 // 3. Luồng Chính (Main Stack - Gồm Tabs và các màn hình con)
 export type MainStackParamList = {
-  MainTabs: { screen?: keyof MainBottomTabParamList }; // Màn hình chứa Bottom Tabs
-  Reader: { story: any }; // Màn hình Reader nhận 1 object `story`
+  MainTabs: { screen?: keyof MainBottomTabParamList };
+  Reader: { story: any };
   Settings: undefined;
-  TopUp: undefined; // Màn hình nạp xu
+  TopUp: undefined;
 };
 
-
-// --- Định nghĩa Props cho từng màn hình (Để dùng hook `useNavigation` và `useRoute`) ---
+// --- (Các Type Props giữ nguyên) ---
 
 // Props cho màn hình trong Auth Stack
 export type AuthScreenProps<T extends keyof AuthStackParamList> =
@@ -48,7 +45,7 @@ export type MainTabScreenProps<T extends keyof MainBottomTabParamList> =
     NativeStackScreenProps<MainStackParamList>
   >;
 
-// Khai báo global để `useNavigation` không báo lỗi
+// Khai báo global
 declare global {
   namespace ReactNavigation {
     interface RootParamList extends MainStackParamList {}
