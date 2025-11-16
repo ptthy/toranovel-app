@@ -1,30 +1,60 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeProvider';
 import { Image } from 'expo-image';
 import { Separator } from '../components/ui/Separator';
 import { Button } from '../components/ui/Button';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ChevronRight, LogOut, Edit, Settings, Coins } from 'lucide-react-native';
+import { ChevronRight, LogOut, Edit, Settings, Coins, Camera } from 'lucide-react-native';
 
-// 1. Import hook và Type
 import { useNavigation } from '@react-navigation/native';
 import { MainTabScreenProps } from '../navigation/types';
-import { useAuth } from '../contexts/AuthContext'; // <-- Import Auth
+import { useAuth } from '../contexts/AuthContext'; 
+
+import * as ImagePicker from 'expo-image-picker';
 
 export function ProfileScreen() {
   const { colors, typography, theme } = useTheme();
-  
-  // 2. Lấy navigation và auth
   const navigation = useNavigation<MainTabScreenProps<'Profile'>['navigation']>();
-  const { signOut } = useAuth();
   
-  const xuBalance = 120;
+  const { user, signOut, uploadAvatar } = useAuth();
+  
+  const [isUploading, setIsUploading] = useState(false);
+  const xuBalance = 120; // (Tạm hardcode)
+
   const gradientColors =
     theme === 'light'
       ? ['#1E5162', '#2C6B7C'] as const
       : ['#1A3D49', '#1E5162'] as const;
+
+  const handleAvatarPress = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Cần quyền', 'Vui lòng cấp quyền truy cập thư viện ảnh để đổi avatar.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      // SỬA DÒNG NÀY: Dùng chuỗi 'Images'
+      mediaTypes: 'images',
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      setIsUploading(true);
+      const uri = result.assets[0].uri;
+      
+      const success = await uploadAvatar(uri);
+      
+      if (!success) {
+        Alert.alert('Lỗi', 'Upload ảnh thất bại. Vui lòng thử lại.');
+      }
+      setIsUploading(false);
+    }
+  };
 
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]}>
@@ -36,8 +66,36 @@ export function ProfileScreen() {
       <ScrollView contentContainerStyle={styles.container}>
         {/* Profile Card */}
         <View style={[styles.card, { backgroundColor: colors.card }]}>
-          {/* ... (Code Profile Header) ... */}
-          <TouchableOpacity style={[styles.editButton, { backgroundColor: colors.muted }]}>
+          <View style={styles.profileHeader}>
+            <TouchableOpacity onPress={handleAvatarPress} disabled={isUploading}>
+              <Image
+                source={user?.avatarUrl ? { uri: user.avatarUrl } : null}
+                style={styles.avatar}
+              />
+              <View style={styles.avatarOverlay}>
+                {isUploading ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <Camera size={16} color="#FFF" />
+                )}
+              </View>
+            </TouchableOpacity>
+            
+            <View style={styles.flex}>
+              <Text style={[typography.h3, { color: colors.foreground }]}>{user?.username || 'Đang tải...'}</Text>
+              <Text style={[typography.p, { color: colors.mutedForeground, marginTop: 4 }]}>
+                {user?.email || ''}
+              </Text>
+            </View>
+          </View>
+          <Text style={[typography.p, { color: colors.mutedForeground, marginVertical: 16 }]}>
+            {user?.bio || 'Chưa có tiểu sử.'}
+          </Text>
+          
+          <TouchableOpacity 
+            style={[styles.editButton, { backgroundColor: colors.muted }]}
+            onPress={() => navigation.navigate('EditProfile')}
+          >
             <Edit size={18} color={colors.foreground} />
             <Text style={[typography.button, { color: colors.foreground, fontWeight: '500', marginLeft: 8 }]}>
               Chỉnh sửa hồ sơ
@@ -47,10 +105,17 @@ export function ProfileScreen() {
 
         {/* Xu Card */}
         <LinearGradient colors={gradientColors} style={styles.xuCard}>
-          {/* ... (Code Xu Header) ... */}
+          <View style={styles.xuHeader}>
+            <View style={styles.xuTitle}>
+              <Coins size={24} color="#F7F3E8" />
+              <Text style={[typography.p, { color: '#F7F3E8', marginLeft: 8 }]}>Số dư xu</Text>
+            </View>
+            <Text style={[typography.h1, { color: '#F7F3E8', fontWeight: '700' }]}>
+              {xuBalance}
+            </Text>
+          </View>
           <Button
             title="Nạp xu"
-            // 3. Sửa onPress
             onPress={() => navigation.navigate('TopUp')}
             style={styles.topupButton}
             textStyle={styles.topupButtonText}
@@ -65,7 +130,6 @@ export function ProfileScreen() {
           <Separator />
           <TouchableOpacity 
             style={styles.menuItem}
-            // 3. Sửa onPress
             onPress={() => navigation.navigate('Settings')}
           >
             <View style={styles.menuItemLeft}>
@@ -78,7 +142,7 @@ export function ProfileScreen() {
           </TouchableOpacity>
         </View>
 
-       {/* Stats Card */}
+        {/* Stats Card */}
         <View style={[styles.card, { backgroundColor: colors.card }]}>
           <Text style={[typography.h4, { color: colors.foreground, marginBottom: 16 }]}>Thống kê</Text>
           <View style={styles.statsRow}>
@@ -96,11 +160,10 @@ export function ProfileScreen() {
             </View>
           </View>
         </View>
-
+        
         {/* Logout Button */}
         <TouchableOpacity 
           style={[styles.logoutButton, { backgroundColor: colors.card, borderColor: colors.border }]}
-          // 3. Sửa onPress
           onPress={signOut}
         >
           <LogOut size={20} color="#DC3545" />
@@ -117,7 +180,25 @@ const styles = StyleSheet.create({
   container: { padding: 16, gap: 16 },
   card: { borderRadius: 12, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, elevation: 2 },
   profileHeader: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  avatar: { width: 80, height: 80, borderRadius: 40 },
+  avatar: { 
+    width: 80, 
+    height: 80, 
+    borderRadius: 40,
+    backgroundColor: '#eee', 
+  },
+  avatarOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFF',
+  },
   editButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 10 },
   xuCard: { borderRadius: 16, padding: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, elevation: 5 },
   xuHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },

@@ -23,20 +23,19 @@ export function BottomTabNavigator() {
   return (
     <Tab.Navigator
       screenOptions={{
-        headerShown: false, // Ẩn header mặc định
+        headerShown: false, 
         tabBarActiveTintColor: activeColor,
         tabBarInactiveTintColor: inactiveColor,
         tabBarStyle: {
-          backgroundColor: colors.card, // bg-[var(--card)]
-          borderTopColor: colors.border, // border-t border-[var(--border)]
-          height: 64, // h-16
-          paddingTop: 8, // Thêm padding cho đẹp
+          backgroundColor: colors.card, 
+          borderTopColor: colors.border, 
+          height: 64, 
+          paddingTop: 8, 
         },
        tabBarLabelStyle: {
-          ...typography.p, // <-- ĐƯA LÊN ĐẦU TIÊN (để lấy fontFamily)
-          fontWeight: '600', // <-- Ghi đè fontWeight
-          fontSize: 10, // <-- Ghi đè fontSize
-          // Bỏ 2 dòng 'fontSize' cũ
+          ...typography.p, 
+          fontWeight: '600', 
+          fontSize: 10, 
         },
       }}
     >
@@ -61,7 +60,7 @@ export function BottomTabNavigator() {
         }}
       />
       <Tab.Screen
-        name="Audio" // Bạn có thể đổi tên "Reader" thành "Audio"
+        name="Audio"
         component={ReaderScreen}
         options={{
           tabBarLabel: 'Audio',

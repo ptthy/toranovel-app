@@ -7,6 +7,7 @@ import { BottomTabNavigator } from './BottomTabNavigator';
 import { ReaderScreen } from '../screens/ReaderScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { TopUpScreen } from '../screens/TopUpScreen';
+import { EditProfileScreen } from '../screens/EditProfileScreen'; // <-- IMPORT MỚI
 
 const Stack = createNativeStackNavigator<MainStackParamList>();
 
@@ -21,6 +22,7 @@ export function MainStackNavigator() {
       <Stack.Screen name="Reader" component={ReaderScreen} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
       <Stack.Screen name="TopUp" component={TopUpScreen} />
+      <Stack.Screen name="EditProfile" component={EditProfileScreen} /> 
     </Stack.Navigator>
   );
 }

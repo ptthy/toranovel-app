@@ -7,7 +7,7 @@ export type AuthStackParamList = {
   Welcome: undefined;
   SignIn: undefined;
   SignUp: undefined;
-  OTP: { email: string }; // <-- SỬA DÒNG NÀY (từ undefined)
+  OTP: { email: string };
   ForgotPassword: undefined;
   ResetPassword: { email: string };
 };
@@ -26,9 +26,10 @@ export type MainStackParamList = {
   Reader: { story: any };
   Settings: undefined;
   TopUp: undefined;
+  EditProfile: undefined; // <-- Đã thêm màn hình này
 };
 
-// --- (Các Type Props giữ nguyên) ---
+// --- (Các Type Props) ---
 
 // Props cho màn hình trong Auth Stack
 export type AuthScreenProps<T extends keyof AuthStackParamList> =
