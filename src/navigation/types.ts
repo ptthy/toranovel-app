@@ -20,33 +20,29 @@ export type MainBottomTabParamList = {
   Profile: undefined;
 };
 
-// 3. Luồng Chính (Main Stack - Gồm Tabs và các màn hình con)
+// 3. Luồng Chính (Main Stack)
 export type MainStackParamList = {
   MainTabs: { screen?: keyof MainBottomTabParamList };
-  Reader: { story: any };
+  Reader: { storyId: string; chapterId: string }; // Cập nhật Reader nhận ID
   Settings: undefined;
   TopUp: undefined;
-  EditProfile: undefined; // <-- Đã thêm màn hình này
+  EditProfile: undefined;
+  StoryDetail: { storyId: string }; // <-- THÊM DÒNG NÀY
 };
 
-// --- (Các Type Props) ---
-
-// Props cho màn hình trong Auth Stack
+// --- Các Type Props (Giữ nguyên) ---
 export type AuthScreenProps<T extends keyof AuthStackParamList> =
   NativeStackScreenProps<AuthStackParamList, T>;
 
-// Props cho màn hình trong Main Stack
 export type MainScreenProps<T extends keyof MainStackParamList> =
   NativeStackScreenProps<MainStackParamList, T>;
 
-// Props cho màn hình BÊN TRONG Bottom Tab
 export type MainTabScreenProps<T extends keyof MainBottomTabParamList> =
   CompositeScreenProps<
     BottomTabScreenProps<MainBottomTabParamList, T>,
     NativeStackScreenProps<MainStackParamList>
   >;
 
-// Khai báo global
 declare global {
   namespace ReactNavigation {
     interface RootParamList extends MainStackParamList {}
