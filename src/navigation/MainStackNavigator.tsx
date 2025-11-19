@@ -7,6 +7,7 @@ import { SettingsScreen } from "../screens/SettingsScreen";
 import { TopUpScreen } from "../screens/TopUpScreen";
 import { EditProfileScreen } from "../screens/EditProfileScreen";
 import { StoryDetailScreen } from "../screens/StoryDetailScreen";
+import { SearchScreen } from "../screens/SearchScreen";
 
 const Stack = createNativeStackNavigator<MainStackParamList>();
 
@@ -23,6 +24,11 @@ export function MainStackNavigator() {
       <Stack.Screen name="TopUp" component={TopUpScreen} />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />
       <Stack.Screen name="StoryDetail" component={StoryDetailScreen} />
+      <Stack.Screen
+        name="Search"
+        component={SearchScreen}
+        options={{ animation: "fade_from_bottom" }}
+      />
     </Stack.Navigator>
   );
 }
