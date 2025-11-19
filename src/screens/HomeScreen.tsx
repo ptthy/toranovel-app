@@ -12,7 +12,7 @@ import { MainTabScreenProps } from '../navigation/types';
 
 // Thêm Type cho Story
 type Story = {
-  id: number;
+  id: string; // <--- SỬA: Đổi từ number thành string để khớp với API và Navigation
   title: string;
   author: string;
   genre: string;
@@ -20,11 +20,13 @@ type Story = {
 };
 
 const trendingStories: Story[] = [
-  { id: 1, title: 'Ma Vương Phục Sinh', author: 'Nguyễn Thanh Tùng', genre: 'Huyền Huyễn', cover: '...' },
-  { id: 2, title: 'Hoàng Hậu Giả Mạo', author: 'Lê Minh Anh', genre: 'Cổ Trang', cover: '...' },
+  // SỬA: Đổi id thành chuỗi '1', '2'
+  { id: '1', title: 'Ma Vương Phục Sinh', author: 'Nguyễn Thanh Tùng', genre: 'Huyền Huyễn', cover: 'https://via.placeholder.com/150' },
+  { id: '2', title: 'Hoàng Hậu Giả Mạo', author: 'Lê Minh Anh', genre: 'Cổ Trang', cover: 'https://via.placeholder.com/150' },
 ];
 const recentUpdates: Story[] = [
-  { id: 5, title: 'Kiếm Khách Lãng Du', author: 'Hoàng Minh Tuấn', genre: 'Kiếm Hiệp', cover: '...' },
+  // SỬA: Đổi id thành chuỗi '5'
+  { id: '5', title: 'Kiếm Khách Lãng Du', author: 'Hoàng Minh Tuấn', genre: 'Kiếm Hiệp', cover: 'https://via.placeholder.com/150' },
 ];
 
 export function HomeScreen() {
@@ -33,7 +35,7 @@ export function HomeScreen() {
   // 2. Lấy navigation từ hook
   const navigation = useNavigation<MainTabScreenProps<'Home'>['navigation']>();
 
-  const renderStoryList = (stories: Story[]) => ( // <-- Dùng type Story
+  const renderStoryList = (stories: Story[]) => (
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
@@ -43,8 +45,8 @@ export function HomeScreen() {
         <StoryCard
           key={story.id}
           {...story}
-          // 3. Sửa onClick để truyền param
-          onClick={() => navigation.navigate('Reader', { story: story })}
+          // Bây giờ story.id là string, nên không còn lỗi nữa
+          onClick={() => navigation.navigate('StoryDetail', { storyId: story.id })}
         />
       ))}
     </ScrollView>
