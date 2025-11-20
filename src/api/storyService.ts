@@ -48,6 +48,7 @@ export interface Story {
   publishedAt: string;
   shortDescription?: string;
   lengthPlan?: string;
+  averageRating?: number;
 }
 
 export interface StoryListResponse {
