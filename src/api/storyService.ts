@@ -1,11 +1,9 @@
 import apiClient from './apiClient';
 
-// ==========================================
-// 1. CÁC TYPE CHO CHI TIẾT TRUYỆN (Detail)
-// ==========================================
+// --- TYPES ---
 export interface Tag {
   tagId: string;
-  tagName: string; // API chi tiết trả về "tagName"
+  tagName: string;
 }
 
 export interface StoryDetail {
@@ -22,9 +20,6 @@ export interface StoryDetail {
   tags: Tag[];
 }
 
-// ==========================================
-// 2. CÁC TYPE CHO DANH SÁCH CHƯƠNG (Chapters)
-// ==========================================
 export interface Chapter {
   chapterId: string;
   chapterNo: number;
@@ -43,11 +38,6 @@ export interface ChapterListResponse {
   pageSize: number;
 }
 
-// ==========================================
-// 3. CÁC TYPE CHO TÌM KIẾM & DANH SÁCH (Search)
-// ==========================================
-
-// Type cho 1 truyện trong danh sách tìm kiếm (ngắn gọn hơn StoryDetail)
 export interface Story {
   storyId: string;
   title: string;
@@ -58,10 +48,8 @@ export interface Story {
   publishedAt: string;
   shortDescription?: string;
   lengthPlan?: string;
-  // Lưu ý: API search có thể trả về cấu trúc tag khác hoặc không có tag
 }
 
-// Type trả về của API tìm kiếm
 export interface StoryListResponse {
   items: Story[];
   total: number;
@@ -69,62 +57,58 @@ export interface StoryListResponse {
   pageSize: number;
 }
 
-// Type cho API lấy danh sách Tag (/api/Tag)
 export interface TagItem {
   tagId: string;
-  name: string; // Lưu ý: API /api/Tag trả về "name", khác với "tagName" ở trên
+  name: string; 
 }
 
-// ==========================================
-// 4. STORY SERVICE (Đã sửa lỗi đóng ngoặc)
-// ==========================================
+// --- SERVICE ---
 export const storyService = {
-  /**
-   * GET /api/StoryCatalog/{storyId}
-   * Lấy thông tin chi tiết truyện
-   */
   getStoryDetail: (storyId: string) => {
     return apiClient.get<StoryDetail>(`/api/StoryCatalog/${storyId}`);
   },
 
-  /**
-   * GET /api/ChapterCatalog?StoryId={storyId}
-   * Lấy danh sách chương
-   */
   getChapters: (storyId: string) => {
     return apiClient.get<ChapterListResponse>(`/api/ChapterCatalog`, {
-      params: { 
-        StoryId: storyId, 
-        PageSize: 100 
-      } 
+      params: { StoryId: storyId, PageSize: 100 } 
     });
   },
 
-  /**
-   * GET /api/Tag
-   * Lấy danh sách tất cả các thể loại (để lọc)
-   */
   getTags: () => {
     return apiClient.get<TagItem[]>('/api/Tag');
   },
 
-  /**
-   * GET /api/StoryCatalog
-   * Tìm kiếm và Lọc truyện
-   */
+  // --- SỬA ĐOẠN NÀY ĐỂ FIX LỖI SEARCH ---
   searchStories: (params: { 
     page?: number; 
     pageSize?: number; 
-    query?: string; // Tìm theo tên
-    tagId?: string; // Lọc theo tag
+    query?: string; 
+    tagId?: string; 
   }) => {
+    // Tạo object params sạch (không gửi query rỗng)
+    const apiParams: any = {
+      page: params.page || 1,
+      pageSize: params.pageSize || 20,
+      tagId: params.tagId,
+    };
+
+    // Chỉ gửi query nếu người dùng thực sự gõ chữ
+    if (params.query && params.query.trim() !== '') {
+      apiParams.query = params.query;
+    }
+
     return apiClient.get<StoryListResponse>('/api/StoryCatalog', {
-      params: {
-        page: params.page || 1,
-        pageSize: params.pageSize || 20,
-        query: params.query,
-        tagId: params.tagId,
-      },
+      params: apiParams,
     });
+  },
+
+  // Các API này có thể trả về Mảng [] hoặc Object {items: []} tùy backend
+  // Chúng ta để Type là any để xử lý linh hoạt bên màn hình
+  getTopWeekly: () => {
+    return apiClient.get<any>('/api/StoryCatalog/top-weekly');
+  },
+
+  getLatest: () => {
+    return apiClient.get<any>('/api/StoryCatalog/latest');
   },
 };
