@@ -1,80 +1,94 @@
-import React from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { useTheme } from "../contexts/ThemeProvider";
-import { Input } from "../components/ui/Input";
-import { StoryCard } from "../components/ui/StoryCard";
-import { Search, BookOpen } from "lucide-react-native";
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTheme } from '../contexts/ThemeProvider';
+import { Input } from '../components/ui/Input';
+import { StoryCard } from '../components/ui/StoryCard';
+import { Search, BookOpen } from 'lucide-react-native';
 
-// 1. Import hook và Type
-import { useNavigation } from "@react-navigation/native";
-import { MainTabScreenProps } from "../navigation/types";
+import { useNavigation } from '@react-navigation/native';
+import { MainTabScreenProps } from '../navigation/types';
+import { Story, storyService } from '../api/storyService';
 
-// Thêm Type cho Story
-type Story = {
-  id: string;
-  title: string;
-  author: string;
-  genre: string;
-  cover: string;
-};
 
-const trendingStories: Story[] = [
-  {
-    id: "1",
-    title: "Ma Vương Phục Sinh",
-    author: "Nguyễn Thanh Tùng",
-    genre: "Huyền Huyễn",
-    cover: "https://via.placeholder.com/150",
-  },
-  {
-    id: "2",
-    title: "Hoàng Hậu Giả Mạo",
-    author: "Lê Minh Anh",
-    genre: "Cổ Trang",
-    cover: "https://via.placeholder.com/150",
-  },
-];
-const recentUpdates: Story[] = [
-  {
-    id: "5",
-    title: "Kiếm Khách Lãng Du",
-    author: "Hoàng Minh Tuấn",
-    genre: "Kiếm Hiệp",
-    cover: "https://via.placeholder.com/150",
-  },
-];
 
 export function HomeScreen() {
   const { colors, typography, theme } = useTheme();
+  const navigation = useNavigation<MainTabScreenProps<'Home'>['navigation']>();
 
-  // 2. Lấy navigation từ hook
-  const navigation = useNavigation<MainTabScreenProps<"Home">["navigation"]>();
+  // State lưu dữ liệu từ API
+  const [hotStories, setHotStories] = useState<Story[]>([]);
+  const [newStories, setNewStories] = useState<Story[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const renderStoryList = (stories: Story[]) => (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.scrollContainer}
-    >
-      {stories.map((story) => (
-        <StoryCard
-          key={story.id}
-          {...story}
-          // Chuyển sang màn hình Chi tiết
-          onClick={() =>
-            navigation.navigate("StoryDetail", { storyId: story.id })
-          }
-        />
-      ))}
-    </ScrollView>
-  );
+  const extractData = (response: any): Story[] => {
+    if (!response || !response.data) return [];
+    if (response.data.items && Array.isArray(response.data.items)) {
+      return response.data.items;
+    }
+    if (Array.isArray(response.data)) {
+      return response.data;
+    }
+    return [];
+  };
+
+  useEffect(() => {
+    const fetchHomeData = async () => {
+      try {
+        const [hotRes, newRes] = await Promise.allSettled([
+          storyService.getTopWeekly(),
+          storyService.getLatest()
+        ]);
+
+        if (hotRes.status === 'fulfilled') {
+          setHotStories(extractData(hotRes.value));
+        }
+        
+        if (newRes.status === 'fulfilled') {
+          setNewStories(extractData(newRes.value));
+        }
+
+      } catch (error) {
+        console.error("Lỗi tải trang chủ:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchHomeData();
+  }, []);
+
+  // Render danh sách truyện ngang
+  const renderStoryList = (stories: Story[]) => {
+    if (stories.length === 0) {
+      return (
+        <Text style={{ color: colors.mutedForeground, marginLeft: 4, fontStyle: 'italic' }}>
+          Chưa có truyện nào.
+        </Text>
+      );
+    }
+
+    return (
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContainer}
+      >
+        {stories.map((story, index) => (
+          <StoryCard
+            // --- SỬA LỖI KEY TẠI ĐÂY ---
+            // Kết hợp storyId và index để đảm bảo key luôn duy nhất
+            key={story.storyId ? `${story.storyId}-${index}` : `story-${index}`} 
+            // ---------------------------
+            title={story.title}
+            cover={story.coverUrl}
+            author={story.authorUsername}
+            onClick={() => navigation.navigate('StoryDetail', { storyId: story.storyId })}
+          />
+        ))}
+      </ScrollView>
+    );
+  };
 
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]}>
@@ -82,106 +96,76 @@ export function HomeScreen() {
         style={styles.flex}
         contentContainerStyle={styles.pageContainer}
       >
-        {/* 1. Header */}
-        <View
-          style={[
-            styles.header,
-            { backgroundColor: colors.card, borderColor: colors.border },
-          ]}
-        >
+        {/* 1. Header & Search Bar */}
+        <View style={[styles.header, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.logoRow}>
-            <View
-              style={[
-                styles.logoBg,
-                { backgroundColor: theme === "light" ? "#1E5162" : "#F7F3E8" },
-              ]}
-            >
-              <BookOpen
-                size={18}
-                color={theme === "light" ? "#F7F3E8" : "#1E5162"}
-              />
+            <View style={[styles.logoBg, { backgroundColor: theme === 'light' ? '#1E5162' : '#F7F3E8' }]}>
+              <BookOpen size={18} color={theme === 'light' ? '#F7F3E8' : '#1E5162'} />
             </View>
             <Text style={[typography.h2, { color: colors.foreground }]}>
               ToraNovel Reader
             </Text>
           </View>
 
-          <TouchableOpacity
+          <TouchableOpacity 
             activeOpacity={0.9}
-            onPress={() => navigation.navigate("Search")}
+            onPress={() => navigation.navigate('Search')}
           >
             <View pointerEvents="none">
               <Input
                 placeholder="Tìm kiếm truyện, tác giả..."
                 leftIcon={<Search size={18} color={colors.mutedForeground} />}
-                editable={false} // Chặn bàn phím hiện ở đây
+                editable={false} 
               />
             </View>
           </TouchableOpacity>
         </View>
 
         {/* 2. Content */}
-        <View style={styles.content}>
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={[typography.h3, { color: colors.foreground }]}>
-                Truyện đề xuất
-              </Text>
-              <TouchableOpacity>
-                <Text
-                  style={[
-                    typography.p,
-                    styles.seeAll,
-                    { color: colors.accent },
-                  ]}
-                >
-                  Xem tất cả
-                </Text>
-              </TouchableOpacity>
-            </View>
-            {renderStoryList(trendingStories)}
+        {isLoading ? (
+          <View style={{ padding: 40, alignItems: 'center' }}>
+             <ActivityIndicator size="large" color={colors.primary} />
           </View>
+        ) : (
+          <View style={styles.content}>
+            
+            {/* Section 1: Truyện Đề Xuất */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={[typography.h3, { color: colors.foreground }]}>Truyện Đề Xuất</Text>
+                <TouchableOpacity onPress={() => navigation.navigate('Search')}>
+                  <Text style={[typography.p, styles.seeAll, { color: colors.accent }]}>Xem thêm</Text>
+                </TouchableOpacity>
+              </View>
+              {renderStoryList(hotStories.slice(0, 5))}
+            </View>
 
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={[typography.h3, { color: colors.foreground }]}>
-                Đang đọc
-              </Text>
-              <TouchableOpacity>
-                <Text
-                  style={[
-                    typography.p,
-                    styles.seeAll,
-                    { color: colors.accent },
-                  ]}
-                >
-                  Xem tất cả
-                </Text>
-              </TouchableOpacity>
+            {/* Section 2: Mới Cập Nhật */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={[typography.h3, { color: colors.foreground }]}>Mới Cập Nhật</Text>
+                <TouchableOpacity onPress={() => navigation.navigate('Search')}>
+                  <Text style={[typography.p, styles.seeAll, { color: colors.accent }]}>Xem thêm</Text>
+                </TouchableOpacity>
+              </View>
+              {renderStoryList(newStories)}
             </View>
-            {renderStoryList(recentUpdates.slice(0, 3))}
-          </View>
 
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={[typography.h3, { color: colors.foreground }]}>
-                Thịnh hành
-              </Text>
-              <TouchableOpacity>
-                <Text
-                  style={[
-                    typography.p,
-                    styles.seeAll,
-                    { color: colors.accent },
-                  ]}
-                >
-                  Xem tất cả
-                </Text>
-              </TouchableOpacity>
-            </View>
-            {renderStoryList(recentUpdates)}
+            {/* Section 3: Thịnh Hành */}
+            {hotStories.length > 5 && (
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Text style={[typography.h3, { color: colors.foreground }]}>Thịnh Hành</Text>
+                  <TouchableOpacity onPress={() => navigation.navigate('Search')}>
+                    <Text style={[typography.p, styles.seeAll, { color: colors.accent }]}>Xem thêm</Text>
+                  </TouchableOpacity>
+                </View>
+                {renderStoryList(hotStories.slice(5, 15))}
+              </View>
+            )}
+
           </View>
-        </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -193,14 +177,14 @@ const styles = StyleSheet.create({
   header: {
     borderBottomWidth: 1,
     padding: 16,
-    shadowColor: "#000",
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     elevation: 2,
   },
   logoRow: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
     marginBottom: 12,
   },
@@ -208,8 +192,8 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 8,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   content: {
     padding: 16,
@@ -218,13 +202,13 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 16,
   },
   seeAll: {
-    fontWeight: "500",
+    fontWeight: '500',
     fontSize: 14,
   },
   scrollContainer: {

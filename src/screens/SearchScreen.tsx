@@ -13,7 +13,6 @@ import { Story, storyService, TagItem } from '../api/storyService';
 import { FilterModal } from '../components/ui/FilterModal';
 
 
-
 const useDebounce = (value: string, delay: number) => {
   const [debouncedValue, setDebouncedValue] = useState(value);
   useEffect(() => {
@@ -30,18 +29,22 @@ export function SearchScreen() {
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebounce(query, 500);
   
+  // SỬA: Mặc định là 'latest' (Mới nhất) để luôn có dữ liệu
   const [filter, setFilter] = useState<{
     tagId: string | undefined;
     sort: 'weekly' | 'latest';
   }>({
     tagId: undefined,
-    sort: 'weekly',
+    sort: 'latest', // <--- Đổi thành 'latest'
   });
 
   const [tags, setTags] = useState<TagItem[]>([]);
   const [isFilterVisible, setIsFilterVisible] = useState(false);
   const [results, setResults] = useState<Story[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Kiểm tra xem có đang tìm kiếm thực sự không (để hiển thị nút Back/Mặc định)
+  const isSearching = debouncedQuery.length > 0 || filter.tagId || filter.sort !== 'latest';
 
   useEffect(() => {
     storyService.getTags().then((res) => {
@@ -63,29 +66,32 @@ export function SearchScreen() {
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
-      // Không clear results ngay lập tức để tránh nháy màn hình, 
-      // chỉ clear nếu logic thay đổi hoàn toàn hoặc xử lý pagination sau này
+      // Không clear results để tránh nháy
       try {
+        // LOGIC MỚI:
+        // 1. Nếu có Query hoặc Tag -> Gọi API SearchStories
         if (debouncedQuery.length > 0 || filter.tagId) {
           const response = await storyService.searchStories({
             query: debouncedQuery,
             tagId: filter.tagId,
             page: 1,
-            pageSize: 20,
+            pageSize: 50, // Lấy nhiều hơn chút
           });
           setResults(extractData(response));
-        } else {
+        } 
+        // 2. Nếu KHÔNG tìm kiếm gì -> Gọi API lấy danh sách theo Sort (Mặc định là Latest)
+        else {
           if (filter.sort === 'weekly') {
             const res = await storyService.getTopWeekly();
             setResults(extractData(res));
           } else {
+            // Mặc định chạy vào đây: Lấy toàn bộ truyện mới nhất
             const res = await storyService.getLatest();
             setResults(extractData(res));
           }
         }
       } catch (error) {
         console.error("Lỗi tải dữ liệu:", error);
-        setResults([]); // Clear nếu lỗi
       } finally {
         setIsLoading(false);
       }
@@ -102,24 +108,27 @@ export function SearchScreen() {
   };
 
   const renderFilterStatus = () => {
-    if (!filter.tagId && filter.sort === 'weekly' && debouncedQuery === '') return null;
+    if (!isSearching) return null;
 
-    let statusText = '';
+    let statusText = 'Danh sách: Mới cập nhật';
     if (filter.tagId) {
       const tagName = tags.find(t => t.tagId === filter.tagId)?.name || 'Thẻ';
       statusText = `Lọc theo: ${tagName}`;
-    } else if (debouncedQuery === '') {
-      statusText = filter.sort === 'weekly' ? 'Danh sách: Hot Tuần' : 'Danh sách: Mới Cập Nhật';
+    } else if (debouncedQuery.length > 0) {
+      statusText = `Tìm kiếm: "${debouncedQuery}"`;
+    } else if (filter.sort === 'weekly') {
+      statusText = 'Danh sách: Hot Tuần';
     }
-
-    if (!statusText) return null;
 
     return (
       <View style={styles.activeFilterBar}>
          <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>
            {statusText}
          </Text>
-         <TouchableOpacity onPress={() => setFilter({ tagId: undefined, sort: 'weekly' })}>
+         <TouchableOpacity onPress={() => {
+           setFilter({ tagId: undefined, sort: 'latest' }); // Reset về mặc định
+           setQuery('');
+         }}>
            <Text style={{ color: colors.primary, fontSize: 12, marginLeft: 12, fontWeight: 'bold' }}>
              Mặc định
            </Text>
@@ -157,11 +166,9 @@ export function SearchScreen() {
           >
             <SlidersHorizontal 
               size={24} 
-              color={filter.tagId || filter.sort !== 'weekly' ? colors.primary : colors.foreground} 
+              color={isSearching ? colors.primary : colors.foreground} 
             />
-            {(filter.tagId || filter.sort !== 'weekly') && (
-              <View style={styles.badge} />
-            )}
+            {isSearching && <View style={styles.badge} />}
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.cancelButton}>
@@ -179,16 +186,16 @@ export function SearchScreen() {
         ) : (
           <FlatList
             data={results}
-            // --- SỬA LỖI KEY Ở ĐÂY ---
-            // Dùng storyId làm key chính, nếu trùng hoặc null thì cộng thêm index để đảm bảo duy nhất
             keyExtractor={(item, index) => 
               item.storyId ? `${item.storyId}-${index}` : `item-${index}`
             }
-            // -------------------------
             contentContainerStyle={styles.resultList}
             ListEmptyComponent={
               <View style={styles.emptyState}>
-                <Text style={{ color: colors.mutedForeground }}>Không tìm thấy kết quả.</Text>
+                <Text style={{ color: colors.mutedForeground }}>
+                  {/* Nếu vào mà ko thấy gì thì chắc chắn DB trống hoặc lỗi mạng */}
+                  Không có truyện nào để hiển thị.
+                </Text>
               </View>
             }
             renderItem={({ item }) => (
@@ -196,8 +203,7 @@ export function SearchScreen() {
                 title={item.title}
                 cover={item.coverUrl}
                 author={item.authorUsername}
-                totalChapters={item.totalChapters}
-                publishedAt={item.publishedAt}
+                rating={item.averageRating} 
                 onClick={() => navigation.navigate('StoryDetail', { storyId: item.storyId })}
               />
             )}
@@ -230,5 +236,5 @@ const styles = StyleSheet.create({
   activeFilterBar: { flexDirection: 'row', paddingHorizontal: 16, paddingBottom: 8, alignItems: 'center', justifyContent: 'space-between' },
   resultList: { padding: 16, paddingTop: 8 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  emptyState: { alignItems: 'center', marginTop: 40 },
+  emptyState: { alignItems: 'center', marginTop: 40, paddingHorizontal: 20 },
 });
