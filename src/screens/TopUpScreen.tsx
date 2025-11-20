@@ -1,206 +1,365 @@
-// src/screens/TopUpScreen.tsx
-import React from 'react';
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  FlatList,
   Alert,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useTheme } from '../contexts/ThemeProvider';
-import { Button } from '../components/ui/Button';
-import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft, Coins, ExternalLink } from 'lucide-react-native';
-import * as Linking from 'expo-linking'; // <-- Import Linking
-import { useNavigation } from '@react-navigation/native';
-// Định nghĩa 'type' cho gói nạp
-type Package = {
-  xu: number;
-  price: string;
-  popular: boolean;
+  Linking,
+  ActivityIndicator,
+  RefreshControl,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useTheme } from "../contexts/ThemeProvider";
+import {
+  ArrowLeft,
+  Crown,
+  Zap,
+  Globe,
+  Mic,
+} from "lucide-react-native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
+import { LinearGradient } from "expo-linear-gradient";
+
+import MaterialIcons from "@react-native-vector-icons/material-icons";
+import { useAuth } from "../contexts/AuthContext"; // Import Auth để cập nhật số dư
+import { paymentService } from "../api/paymentService";
+
+// --- CẤU HÌNH GÓI NẠP (MAPPING) ---
+// displayPrice: Giá hiển thị lên màn hình (50k, 100k...)
+// apiAmount: Giá trị gửi lên Server Backend (2k, 3k...)
+
+const PREMIUM_PACKAGE = {
+  id: "monthly_100",
+  name: "Hội Viên Tháng",
+  displayPrice: 100000, // Hiển thị 100k
+  apiAmount: 3000,      // Gửi lên 3k (Ví dụ: Map với gói test trung bình)
+  diasInstant: 1000,
+  diasDaily: 50,
+  features: [
+    { icon: Zap, text: "Nhận 50 Dias mỗi ngày" },
+    { icon: Crown, text: "Đổi nhạc nền, hiệu ứng đọc" },
+    { icon: Globe, text: "Dịch truyện 4 ngôn ngữ" },
+    { icon: Mic, text: "Mở khóa 2 giọng đọc AI cao cấp" },
+  ],
 };
 
-const packages: Package[] = [ // <-- Thêm type Package[]
-  { xu: 20, price: '10.000đ', popular: false },
-  { xu: 50, price: '20.000đ', popular: true },
-  { xu: 120, price: '50.000đ', popular: false },
-  { xu: 250, price: '100.000đ', popular: false },
-  // ... (các gói khác)
+const SINGLE_PACKAGES = [
+  { 
+    id: "single_50", 
+    displayPrice: 50000, // UI hiện 50,000đ
+    apiAmount: 2000,     // API nhận 2000đ -> Được 550 Dias
+    dias: 550, 
+    bonus: "10%" 
+  },
+  { 
+    id: "single_100", 
+    displayPrice: 100000, // UI hiện 100,000đ
+    apiAmount: 3000,      // API nhận 3000đ -> Được 1150 Dias
+    dias: 1150, 
+    bonus: "15%" 
+  },
+  { 
+    id: "single_200", 
+    displayPrice: 200000, // UI hiện 200,000đ
+    apiAmount: 4000,      // API nhận 4000đ -> Được 2400 Dias
+    dias: 2400, 
+    bonus: "20%" 
+  },
 ];
 
 export function TopUpScreen() {
-  const { colors, typography, theme } = useTheme();
-  const currentBalance = 120;
-  const gradientColors =
-    theme === 'light'
-      ? ['#1E5162', '#2C6B7C'] as const
-      : ['#1A3D49', '#1E5162'] as const;
+  const { colors, typography } = useTheme();
+  const navigation = useNavigation();
+  const { user, fetchUserProfile } = useAuth(); // Lấy user và hàm refresh
+  
+  const [isLoading, setIsLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Dùng Linking để mở web
-  const handlePayment = async (pkg: Package) => {
+  // Tự động cập nhật số dư khi quay lại màn hình này
+  useFocusEffect(
+    useCallback(() => {
+      fetchUserProfile();
+    }, [])
+  );
+
+  const onRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    await fetchUserProfile();
+    setIsRefreshing(false);
+  }, []);
+
+  // Hàm xử lý thanh toán
+  const handlePayment = async (amountToSend: number) => {
+    setIsLoading(true);
     try {
-      await Linking.openURL('https://payment-example.com');
+      // Gọi API tạo link với số tiền test (apiAmount)
+      const response = await paymentService.createPaymentLink(amountToSend);
+      const { checkoutUrl } = response.data;
+
+      if (checkoutUrl) {
+        const supported = await Linking.canOpenURL(checkoutUrl);
+        if (supported) {
+          await Linking.openURL(checkoutUrl);
+        } else {
+          Alert.alert("Lỗi", "Không thể mở trình duyệt thanh toán.");
+        }
+      } else {
+        Alert.alert("Lỗi", "Không lấy được link thanh toán.");
+      }
     } catch (error) {
-      Alert.alert('Không thể mở trang thanh toán');
+      console.error(error);
+      Alert.alert("Lỗi", "Có lỗi xảy ra khi tạo giao dịch.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const renderPackage = ({ item }: { item: Package }) => {
-    const isPopular = item.popular;
-
-    // Style cho nút
-    const buttonStyle = isPopular
-      ? { backgroundColor: colors.primary }
-      : { backgroundColor: colors.muted };
-    const textStyle = isPopular
-      ? { color: colors.background }
-      : { color: colors.foreground };
-
-    return (
-      <View
-        style={[
-          styles.packageItem,
-          {
-            backgroundColor: colors.card,
-            borderColor: isPopular ? colors.primary : colors.border,
-          },
-        ]}
-      >
-        {isPopular && (
-          <View style={[styles.popularBadge, { backgroundColor: colors.primary }]}>
-            <Text style={[typography.p, { color: colors.background, fontSize: 10, fontWeight: '600' }]}>
-              Phổ biến
-            </Text>
-          </View>
-        )}
-        <View style={styles.packageContent}>
-          <View style={styles.xuRow}>
-            <Coins size={20} color={colors.primary} />
-            <Text style={[typography.h2, { color: colors.foreground, fontWeight: '700' }]}>
-              {item.xu}
-            </Text>
-          </View>
-          <Text style={[typography.p, { color: colors.foreground, fontWeight: '600', marginBottom: 12 }]}>
-            {item.price}
-          </Text>
-          <Button
-            title="Chọn"
-            onPress={() => handlePayment(item)}
-            style={[styles.packageButton, buttonStyle]}
-            textStyle={[textStyle, { fontSize: 13, fontWeight: '600' }]}
-          />
-        </View>
-      </View>
-    );
+  // Component hiển thị giá tiền (VND)
+  const formatCurrency = (amount: number) => {
+    return amount.toLocaleString("vi-VN") + "đ";
   };
 
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <TouchableOpacity /* onPress={() => navigation.goBack()} */ style={styles.headerButton}>
-          <ArrowLeft size={20} color={colors.foreground} />
+      <View style={[styles.header, { borderBottomColor: colors.border }]}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+        >
+          <ArrowLeft size={24} color={colors.foreground} />
         </TouchableOpacity>
-        <Text style={[typography.h4, { color: colors.foreground }]}>Nạp xu</Text>
-        <View style={styles.headerButton} />{/* Spacer */}
+        <View style={{ alignItems: 'center' }}>
+           <Text style={[typography.h3, { color: colors.foreground }]}>Ưu Đãi</Text>
+           <Text style={{ color: colors.primary, fontSize: 14, fontWeight: '600' }}>
+             Số dư: {user?.dias || 0} 💎
+           </Text>
+        </View>
+        <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.container}>
-        {/* Balance Card */}
-        <LinearGradient colors={gradientColors} style={styles.balanceCard}>
-          <View style={styles.xuRow}>
-            <Coins size={24} color="#F7F3E8" />
-            <Text style={[typography.p, { color: '#F7F3E8', marginLeft: 8 }]}>Số dư hiện tại</Text>
-          </View>
-          <Text style={[typography.h1, { color: '#F7F3E8', fontWeight: '700', fontSize: 32, marginTop: 4 }]}>
-            {currentBalance} xu
-          </Text>
-        </LinearGradient>
+      <ScrollView 
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />}
+      >
+        {/* 1. GÓI HỘI VIÊN (PREMIUM) */}
+        <Text
+          style={[
+            typography.h4,
+            styles.sectionTitle,
+            { color: colors.foreground },
+          ]}
+        >
+          Gói Tháng
+        </Text>
 
-        {/* Intro */}
-        <View style={styles.introSection}>
-          <Text style={[typography.h3, { color: colors.foreground, marginBottom: 16 }]}>Chọn gói nạp</Text>
-          <Text style={[typography.p, { color: colors.mutedForeground }]}>
-            1 xu = 1 chương truyện có phí. Nạp xu để mở khóa các chương đặc biệt.
-          </Text>
-        </View>
+        <TouchableOpacity
+          activeOpacity={0.9}
+          // UI hiển thị 100k, nhưng gửi API là 3000 (hoặc giá test khác)
+          onPress={() => handlePayment(PREMIUM_PACKAGE.apiAmount)}
+        >
+          <LinearGradient
+            colors={["#1E5162", "#2C6B7C"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.premiumCard}
+          >
+            <View style={styles.premiumHeader}>
+              <View>
+                <Text style={styles.premiumTitle}>PREMIUM MONTHLY</Text>
+                <Text style={styles.premiumSubtitle}>
+                  Nhận ngay {PREMIUM_PACKAGE.diasInstant} Dias
+                </Text>
+              </View>
+              <View style={styles.priceTag}>
+                {/* Hiển thị giá thật */}
+                <Text style={styles.priceText}>
+                  {formatCurrency(PREMIUM_PACKAGE.displayPrice)}
+                </Text>
+                <Text style={styles.durationText}>/ tháng</Text>
+              </View>
+            </View>
 
-        {/* Gói nạp (Grid) */}
-        <FlatList
-          data={packages}
-          renderItem={renderPackage}
-          keyExtractor={(item) => item.xu.toString()}
-          numColumns={2}
-          scrollEnabled={false} // Vì đã có ScrollView cha
-          style={styles.grid}
-          columnWrapperStyle={styles.gridRow}
-        />
+            <View style={styles.divider} />
 
-        {/* Payment Info */}
-        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[typography.h4, styles.paymentTitle, { color: colors.foreground }]}>
-            <ExternalLink size={18} color={colors.foreground} /> Phương thức thanh toán
-          </Text>
-          {/* ... (phần text về phương thức thanh toán) ... */}
+            <View style={styles.featureList}>
+              {PREMIUM_PACKAGE.features.map((item, index) => (
+                <View key={index} style={styles.featureItem}>
+                  <item.icon size={18} color="#FFD700" />
+                  <Text style={styles.featureText}>{item.text}</Text>
+                </View>
+              ))}
+            </View>
+          </LinearGradient>
+        </TouchableOpacity>
+
+        {/* 2. GÓI MUA LẺ (SINGLE) */}
+        <Text
+          style={[
+            typography.h4,
+            styles.sectionTitle,
+            { color: colors.foreground, marginTop: 32 },
+          ]}
+        >
+          Gói Mua Lẻ
+        </Text>
+
+        <View style={styles.packageList}>
+          {SINGLE_PACKAGES.map((pkg) => (
+            <TouchableOpacity
+              key={pkg.id}
+              style={[
+                styles.packageItem,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
+              // Quan trọng: Gửi apiAmount (giá test) khi bấm nút
+              onPress={() => handlePayment(pkg.apiAmount)}
+            >
+              <View style={styles.packageLeft}>
+                <View style={styles.iconBox}>
+                  <MaterialIcons name="diamond" size={24} color="#2980B9" />
+                </View>
+                <View style={{ marginLeft: 12 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    <Text style={[typography.h4, { color: colors.foreground }]}>
+                      {pkg.dias.toLocaleString()} Kim Cương
+                    </Text>
+                  </View>
+                  <Text
+                    style={{
+                      color: "#27AE60",
+                      fontSize: 12,
+                      fontWeight: "600",
+                    }}
+                  >
+                    Tặng thêm {pkg.bonus}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.packageRight}>
+                {/* Hiển thị displayPrice (giá thật) */}
+                <Text style={[typography.button, { color: colors.primary }]}>
+                  {formatCurrency(pkg.displayPrice)}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          ))}
         </View>
       </ScrollView>
+
+      {isLoading && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="#FFF" />
+          <Text style={{ color: "#FFF", marginTop: 12 }}>
+            Đang tạo giao dịch...
+          </Text>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  header: { borderBottomWidth: 1, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, elevation: 2 },
-  headerButton: { padding: 4, width: 40 },
-  container: { padding: 16, gap: 24 },
-  balanceCard: { borderRadius: 16, padding: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, elevation: 5 },
-  xuRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  introSection: { gap: 8 },
-  grid: { marginHorizontal: -6 },
-  gridRow: { gap: 12 },
-  packageItem: {
-    flex: 1,
-    borderWidth: 2,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    elevation: 2,
-    marginHorizontal: 6, // Tạo gap
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 16,
+    borderBottomWidth: 1,
   },
-  popularBadge: {
-    position: 'absolute',
-    top: -12, // Dịch chuyển lên
-    alignSelf: 'center', // Căn giữa
+  backButton: { padding: 4 },
+  content: { padding: 16, paddingBottom: 40 },
+
+  sectionTitle: { marginBottom: 12 },
+
+  // Premium Card Styles
+  premiumCard: {
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    elevation: 6,
+  },
+  premiumHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
+  premiumTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#FFD700",
+    letterSpacing: 0.5,
+  },
+  premiumSubtitle: {
+    color: "#FFF",
+    fontSize: 14,
+    marginTop: 4,
+    opacity: 0.9,
+  },
+  priceTag: {
+    backgroundColor: "rgba(255,255,255,0.2)",
     paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 99,
+    paddingVertical: 6,
+    borderRadius: 8,
+    alignItems: "center",
   },
-  packageContent: {
+  priceText: {
+    color: "#FFF",
+    fontWeight: "bold",
+    fontSize: 16,
+  },
+  durationText: {
+    color: "#E0E0E0",
+    fontSize: 10,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    marginVertical: 16,
+  },
+  featureList: { gap: 10 },
+  featureItem: { flexDirection: "row", alignItems: "center", gap: 12 },
+  featureText: { color: "#FFF", fontSize: 14, fontWeight: "500" },
+
+  // Single Package List Styles
+  packageList: { gap: 12 },
+  packageItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     padding: 16,
-    alignItems: 'center',
-    paddingTop: 24, // Dành chỗ cho badge
-  },
-  packageButton: {
-    width: '100%',
-    height: 36,
-  },
-  card: {
     borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    elevation: 2,
     borderWidth: 1,
   },
-  paymentTitle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 12,
+  packageLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  iconBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  packageRight: {
+    backgroundColor: "#F0F8FF",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 100,
   },
 });

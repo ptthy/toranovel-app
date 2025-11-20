@@ -10,7 +10,7 @@ export interface UserProfile {
   bio: string | null;
   gender: 'unspecified' | 'M' | 'F';
   birthday: string | null;
-  // ... (Thêm các trường khác nếu cần)
+dias: number;
 }
 
 // Type cho PUT /api/Profile

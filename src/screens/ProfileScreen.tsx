@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeProvider';
@@ -6,22 +6,31 @@ import { Image } from 'expo-image';
 import { Separator } from '../components/ui/Separator';
 import { Button } from '../components/ui/Button';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ChevronRight, LogOut, Edit, Settings, Coins, Camera } from 'lucide-react-native';
+// Thay Coins bằng Diamond
+import { ChevronRight, LogOut, Edit, Settings, Diamond, Camera } from 'lucide-react-native';
 
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { MainTabScreenProps } from '../navigation/types';
 import { useAuth } from '../contexts/AuthContext'; 
 
 import * as ImagePicker from 'expo-image-picker';
+import MaterialIcons from '@react-native-vector-icons/material-icons';
 
 export function ProfileScreen() {
   const { colors, typography, theme } = useTheme();
   const navigation = useNavigation<MainTabScreenProps<'Profile'>['navigation']>();
   
-  const { user, signOut, uploadAvatar } = useAuth();
+  // Lấy thêm hàm fetchUserProfile để cập nhật số dư
+  const { user, signOut, uploadAvatar, fetchUserProfile } = useAuth();
   
   const [isUploading, setIsUploading] = useState(false);
-  const xuBalance = 120; // (Tạm hardcode)
+
+  // TỰ ĐỘNG CẬP NHẬT SỐ DƯ KHI QUAY LẠI MÀN HÌNH NÀY
+  useFocusEffect(
+    useCallback(() => {
+      fetchUserProfile();
+    }, [])
+  );
 
   const gradientColors =
     theme === 'light'
@@ -36,7 +45,6 @@ export function ProfileScreen() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      // SỬA DÒNG NÀY: Dùng chuỗi 'Images'
       mediaTypes: 'images',
       allowsEditing: true,
       aspect: [1, 1],
@@ -103,24 +111,29 @@ export function ProfileScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Xu Card */}
+        {/* === THAY ĐỔI Ở ĐÂY: Dias Card === */}
         <LinearGradient colors={gradientColors} style={styles.xuCard}>
           <View style={styles.xuHeader}>
             <View style={styles.xuTitle}>
-              <Coins size={24} color="#F7F3E8" />
-              <Text style={[typography.p, { color: '#F7F3E8', marginLeft: 8 }]}>Số dư xu</Text>
+              {/* Icon Kim Cương */}
+            <MaterialIcons name="diamond" size={24} color="#FFFF" />
+              {/* Đổi chữ thành Dias */}
+              <Text style={[typography.p, { color: '#F7F3E8', marginLeft: 8, fontWeight: '600' }]}>Dias</Text>
             </View>
+            {/* Hiển thị số Dias thực từ User (nếu chưa có thì hiện 0) */}
             <Text style={[typography.h1, { color: '#F7F3E8', fontWeight: '700' }]}>
-              {xuBalance}
+              {user?.dias ? user.dias.toLocaleString() : '0'}
             </Text>
           </View>
           <Button
-            title="Nạp xu"
+            // Đổi chữ thành Nâng cấp gói
+            title="Nâng cấp gói"
             onPress={() => navigation.navigate('TopUp')}
             style={styles.topupButton}
             textStyle={styles.topupButtonText}
           />
         </LinearGradient>
+        {/* ================================= */}
 
         {/* Settings Card */}
         <View style={[styles.card, { backgroundColor: colors.card, paddingVertical: 0 }]}>
