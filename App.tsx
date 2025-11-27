@@ -1,8 +1,9 @@
 import 'react-native-gesture-handler'; // Phải import ở dòng đầu tiên
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import * as Updates from 'expo-updates';
 
 // Import Font (Cần cài: npx expo install @expo-google-fonts/inter @expo-google-fonts/poppins)
 import {
@@ -38,6 +39,29 @@ export default function App() {
     Poppins_600SemiBold,
     Poppins_700Bold,
   });
+
+  // Check for updates when app starts
+  useEffect(() => {
+    async function checkForUpdates() {
+      try {
+        // Only check for updates in production builds
+        if (!__DEV__) {
+          const update = await Updates.checkForUpdateAsync();
+
+          if (update.isAvailable) {
+            await Updates.fetchUpdateAsync();
+            // Reload the app to apply the update
+            await Updates.reloadAsync();
+          }
+        }
+      } catch (error) {
+        // Handle error - you can add error logging here
+        console.log('Error checking for updates:', error);
+      }
+    }
+
+    checkForUpdates();
+  }, []);
 
   // Nếu font chưa load xong, hiển thị màn hình loading
   if (!interLoaded || !poppinsLoaded) {

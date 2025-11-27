@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "toranovelApp",
-    "slug": "toranovelApp",
+    "slug": "toranovelapp",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -31,9 +31,15 @@
     "plugins": [
       "expo-font"
     ],
+    "updates": {
+      "url": "https://u.expo.dev/3a4fd002-be2d-4bd6-97eb-211c0345958b"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "extra": {
       "eas": {
-        "projectId": "4447f818-0285-449f-bdd6-af9b6e76e70c"
+        "projectId": "3a4fd002-be2d-4bd6-97eb-211c0345958b"
       }
     }
   }
