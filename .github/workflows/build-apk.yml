@@ -47,8 +47,8 @@ jobs:
         run: |
           echo "Waiting for build ${{ env.BUILD_ID }} to complete..."
 
-          # Poll until build completes (max 30 minutes)
-          TIMEOUT=1800
+          # Poll until build completes (max 120 minutes - includes queue time)
+          TIMEOUT=7200
           ELAPSED=0
           INTERVAL=30
 
