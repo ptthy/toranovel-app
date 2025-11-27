@@ -36,10 +36,12 @@ jobs:
       - name: Build APK with EAS
         run: |
           echo "Building with profile: production"
-          eas build --platform android --profile production --non-interactive --no-wait --json > build-output.json
-          BUILD_ID=$(cat build-output.json | jq -r '.id')
-          echo "BUILD_ID=$BUILD_ID" >> $GITHUB_ENV
-          echo "Build ID: $BUILD_ID"
+          eas build --platform android --profile production --non-interactive --no-wait > build-output.txt
+
+          # Extract build ID from the logs URL
+          BUILD_URL=$(grep -oP 'https://expo.dev/accounts/[^/]+/projects/[^/]+/builds/\K[a-f0-9-]+' build-output.txt)
+          echo "BUILD_ID=$BUILD_URL" >> $GITHUB_ENV
+          echo "Build ID: $BUILD_URL"
 
       - name: Get build URL and wait for completion
         run: |
