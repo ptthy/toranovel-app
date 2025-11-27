@@ -6,11 +6,11 @@ import { useTheme } from '../../contexts/ThemeProvider';
 type StoryCardProps = {
   title: string;
   cover: string;
-  author: string;
+  // author: string;
   onClick: () => void;
 };
 
-export function StoryCard({ title, cover, author, onClick }: StoryCardProps) {
+export function StoryCard({ title, cover, onClick }: StoryCardProps) {
   const { colors, typography } = useTheme();
 
   return (
@@ -28,25 +28,26 @@ export function StoryCard({ title, cover, author, onClick }: StoryCardProps) {
       >
         {title}
       </Text>
-      <Text
+      {/* <Text
         style={[typography.p, styles.author, { color: colors.mutedForeground }]}
         numberOfLines={1}
       >
         {author}
-      </Text>
+      </Text> */}
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    width: 130,
+    width: 130, // <-- GIỚI HẠN CHIỀU RỘNG (Gợi ý 4)
+    marginRight: 0, // Margin xử lý bằng gap ở ScrollView cha
   },
-  coverImage: {
+  coverImage:{
     width: '100%',
-    height: 180,
-    borderRadius: 8,
-    backgroundColor: '#eee', // Màu này sẽ là placeholder
+    height: 190, // Tỉ lệ ~2:3
+    borderRadius: 12, // <-- BO GÓC MẠNH HƠN
+    backgroundColor: '#eee',
   },
   title: {
     marginTop: 8,

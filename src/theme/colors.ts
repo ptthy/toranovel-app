@@ -18,6 +18,8 @@ const palette = {
   mutedDark: '#1E5162',
   mutedForegroundDark: '#C4BCAB',
   borderDark: '#1E5162',
+  success: '#22C55E',      // Màu xanh lá (cho Light mode)
+  successLight: '#4ADE80',
 };
 
 // Định nghĩa màu sắc cho từng theme
@@ -33,6 +35,7 @@ export const lightColors = {
   border: palette.borderLight,
   input: palette.cardLight,
   ring: palette.accent,
+  success: palette.success,
 };
 
 export const darkColors = {
@@ -47,6 +50,7 @@ export const darkColors = {
   border: palette.borderDark,
   input: palette.cardDark,
   ring: palette.accent,
+  success: palette.successLight,
 };
 
 // Export type để dùng trong Context

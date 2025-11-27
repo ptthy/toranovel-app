@@ -99,7 +99,7 @@ const [showPassword, setShowPassword] = useState(false);
           />
          <Input
   label="Mật khẩu"
-  placeholder="••••••••"
+  placeholder="mật khẩu"
   value={password}
   onChangeText={setPassword}
   secureTextEntry={!showPassword}
