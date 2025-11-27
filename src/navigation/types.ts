@@ -28,7 +28,8 @@ export type MainStackParamList = {
   TopUp: undefined;
   EditProfile: undefined;
   StoryDetail: { storyId: string }; 
-  Search: undefined;
+Search: undefined;
+  AuthorProfile: { authorId: string };
 };
 
 // --- Các Type Props (Giữ nguyên) ---

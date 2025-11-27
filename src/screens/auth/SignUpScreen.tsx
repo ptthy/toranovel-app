@@ -43,7 +43,7 @@ export function SignUpScreen() {
   const handleSignUp = async () => {
     if (isLoading) return;
 
-    // Kiểm tra mật khẩu khớp
+    // Kiểm tra Mật khẩu khớp
     if (password !== confirmPassword) {
       setError("Mật khẩu không khớp.");
       return;
@@ -119,7 +119,7 @@ export function SignUpScreen() {
           />
           <Input
             label="Mật khẩu"
-            placeholder="••••••••"
+            placeholder="Mật khẩu"
             value={password}
             onChangeText={setPassword}
             secureTextEntry={!showPassword}
@@ -135,8 +135,8 @@ export function SignUpScreen() {
           />
 
           <Input
-            label="Xác nhận mật khẩu"
-            placeholder="••••••••"
+            label="Xác nhận Mật khẩu"
+            placeholder="nhập lại mật khẩu"
             value={confirmPassword}
             onChangeText={setConfirmPassword}
             secureTextEntry={!showConfirmPassword}

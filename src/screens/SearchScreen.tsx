@@ -1,17 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, 
-  TextInput 
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useTheme } from '../contexts/ThemeProvider';
-import { StoryListItem } from '../components/ui/StoryListItem';
-import { Search, X, SlidersHorizontal } from 'lucide-react-native';
-import { useNavigation } from '@react-navigation/native';
-import { MainTabScreenProps } from '../navigation/types';
-import { Story, storyService, TagItem } from '../api/storyService';
-import { FilterModal } from '../components/ui/FilterModal';
-
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  ActivityIndicator,
+  TextInput,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useTheme } from "../contexts/ThemeProvider";
+import { StoryListItem } from "../components/ui/StoryListItem";
+import { Search, X, SlidersHorizontal } from "lucide-react-native";
+import { useNavigation } from "@react-navigation/native";
+import { MainTabScreenProps } from "../navigation/types";
+import { Story, storyService, TagItem } from "../api/storyService";
+import { FilterModal } from "../components/ui/FilterModal";
 
 const useDebounce = (value: string, delay: number) => {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -24,18 +28,18 @@ const useDebounce = (value: string, delay: number) => {
 
 export function SearchScreen() {
   const { colors, typography } = useTheme();
-  const navigation = useNavigation<MainTabScreenProps<'Home'>['navigation']>();
+  const navigation = useNavigation<MainTabScreenProps<"Home">["navigation"]>();
 
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
   const debouncedQuery = useDebounce(query, 500);
-  
+
   // SỬA: Mặc định là 'latest' (Mới nhất) để luôn có dữ liệu
   const [filter, setFilter] = useState<{
     tagId: string | undefined;
-    sort: 'weekly' | 'latest';
+    sort: "weekly" | "latest";
   }>({
     tagId: undefined,
-    sort: 'latest', // <--- Đổi thành 'latest'
+    sort: "latest", // <--- Đổi thành 'latest'
   });
 
   const [tags, setTags] = useState<TagItem[]>([]);
@@ -44,12 +48,16 @@ export function SearchScreen() {
   const [isLoading, setIsLoading] = useState(false);
 
   // Kiểm tra xem có đang tìm kiếm thực sự không (để hiển thị nút Back/Mặc định)
-  const isSearching = debouncedQuery.length > 0 || filter.tagId || filter.sort !== 'latest';
+  const isSearching =
+    debouncedQuery.length > 0 || filter.tagId || filter.sort !== "latest";
 
   useEffect(() => {
-    storyService.getTags().then((res) => {
-      setTags(res.data);
-    }).catch(err => console.error("Lỗi lấy tags:", err));
+    storyService
+      .getTags()
+      .then((res) => {
+        setTags(res.data);
+      })
+      .catch((err) => console.error("Lỗi lấy tags:", err));
   }, []);
 
   const extractData = (response: any): Story[] => {
@@ -66,27 +74,33 @@ export function SearchScreen() {
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
-      // Không clear results để tránh nháy
       try {
-        // LOGIC MỚI:
-        // 1. Nếu có Query hoặc Tag -> Gọi API SearchStories
+        const MAX_ITEMS = 100;
+
+        let response;
+        // 1. Trường hợp có Search hoặc Filter Tag
         if (debouncedQuery.length > 0 || filter.tagId) {
-          const response = await storyService.searchStories({
+          response = await storyService.searchStories({
             query: debouncedQuery,
             tagId: filter.tagId,
             page: 1,
-            pageSize: 50, // Lấy nhiều hơn chút
+            pageSize: MAX_ITEMS, // Lấy 100 item
           });
           setResults(extractData(response));
-        } 
-        // 2. Nếu KHÔNG tìm kiếm gì -> Gọi API lấy danh sách theo Sort (Mặc định là Latest)
+        }
+        // 2. Trường hợp mặc định (Load All / Latest)
         else {
-          if (filter.sort === 'weekly') {
+          if (filter.sort === "weekly") {
+            // API top-weekly thường trả về số lượng cố định,
+            // nếu muốn nhiều hơn phải dùng API Catalog chung
             const res = await storyService.getTopWeekly();
             setResults(extractData(res));
           } else {
-            // Mặc định chạy vào đây: Lấy toàn bộ truyện mới nhất
-            const res = await storyService.getLatest();
+            // "Get All" ở đây: Gọi API Catalog lấy 100 item mới nhất
+            const res = await storyService.searchStories({
+              page: 1,
+              pageSize: MAX_ITEMS, // Lấy 100 item
+            });
             setResults(extractData(res));
           }
         }
@@ -100,7 +114,10 @@ export function SearchScreen() {
     fetchData();
   }, [debouncedQuery, filter]);
 
-  const handleApplyFilter = (newTagId: string | undefined, newSort: 'weekly' | 'latest') => {
+  const handleApplyFilter = (
+    newTagId: string | undefined,
+    newSort: "weekly" | "latest"
+  ) => {
     setFilter({
       tagId: newTagId,
       sort: newSort,
@@ -110,29 +127,38 @@ export function SearchScreen() {
   const renderFilterStatus = () => {
     if (!isSearching) return null;
 
-    let statusText = 'Danh sách: Mới cập nhật';
+    let statusText = "Danh sách: Mới cập nhật";
     if (filter.tagId) {
-      const tagName = tags.find(t => t.tagId === filter.tagId)?.name || 'Thẻ';
+      const tagName = tags.find((t) => t.tagId === filter.tagId)?.name || "Thẻ";
       statusText = `Lọc theo: ${tagName}`;
     } else if (debouncedQuery.length > 0) {
       statusText = `Tìm kiếm: "${debouncedQuery}"`;
-    } else if (filter.sort === 'weekly') {
-      statusText = 'Danh sách: Hot Tuần';
+    } else if (filter.sort === "weekly") {
+      statusText = "Danh sách: Hot Tuần";
     }
 
     return (
       <View style={styles.activeFilterBar}>
-         <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>
-           {statusText}
-         </Text>
-         <TouchableOpacity onPress={() => {
-           setFilter({ tagId: undefined, sort: 'latest' }); // Reset về mặc định
-           setQuery('');
-         }}>
-           <Text style={{ color: colors.primary, fontSize: 12, marginLeft: 12, fontWeight: 'bold' }}>
-             Mặc định
-           </Text>
-         </TouchableOpacity>
+        <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>
+          {statusText}
+        </Text>
+        <TouchableOpacity
+          onPress={() => {
+            setFilter({ tagId: undefined, sort: "latest" }); // Reset về mặc định
+            setQuery("");
+          }}
+        >
+          <Text
+            style={{
+              color: colors.primary,
+              fontSize: 12,
+              marginLeft: 12,
+              fontWeight: "bold",
+            }}
+          >
+            Mặc định
+          </Text>
+        </TouchableOpacity>
       </View>
     );
   };
@@ -140,39 +166,45 @@ export function SearchScreen() {
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]}>
       <View style={styles.container}>
-        
         {/* HEADER */}
-        <View style={[styles.headerContainer, { borderBottomColor: colors.border }]}>
-          <View style={[styles.searchBar, { backgroundColor: '#F2F2F2' }]}>
+        <View
+          style={[styles.headerContainer, { borderBottomColor: colors.border }]}
+        >
+          <View style={[styles.searchBar, { backgroundColor: "#F2F2F2" }]}>
             <Search size={20} color="#999" style={{ marginLeft: 12 }} />
             <TextInput
               placeholder="Tìm kiếm truyện..."
               placeholderTextColor="#999"
               value={query}
               onChangeText={setQuery}
-              style={[styles.input, { color: '#333' }]}
-              autoFocus={false} 
+              style={[styles.input, { color: "#333" }]}
+              autoFocus={false}
             />
             {query.length > 0 && (
-              <TouchableOpacity onPress={() => setQuery('')}>
+              <TouchableOpacity onPress={() => setQuery("")}>
                 <X size={18} color="#999" style={{ marginRight: 12 }} />
               </TouchableOpacity>
             )}
           </View>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.filterButton}
             onPress={() => setIsFilterVisible(true)}
           >
-            <SlidersHorizontal 
-              size={24} 
-              color={isSearching ? colors.primary : colors.foreground} 
+            <SlidersHorizontal
+              size={24}
+              color={isSearching ? colors.primary : colors.foreground}
             />
             {isSearching && <View style={styles.badge} />}
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.cancelButton}>
-            <Text style={{ color: colors.foreground, fontSize: 15 }}>Thoát</Text>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.cancelButton}
+          >
+            <Text style={{ color: colors.foreground, fontSize: 15 }}>
+              Thoát
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -186,7 +218,7 @@ export function SearchScreen() {
         ) : (
           <FlatList
             data={results}
-            keyExtractor={(item, index) => 
+            keyExtractor={(item, index) =>
               item.storyId ? `${item.storyId}-${index}` : `item-${index}`
             }
             contentContainerStyle={styles.resultList}
@@ -199,12 +231,16 @@ export function SearchScreen() {
               </View>
             }
             renderItem={({ item }) => (
-              <StoryListItem 
+              <StoryListItem
+              storyId={item.storyId}     
+      authorId={item.authorId}
                 title={item.title}
                 cover={item.coverUrl}
                 author={item.authorUsername}
-                rating={item.averageRating} 
-                onClick={() => navigation.navigate('StoryDetail', { storyId: item.storyId })}
+                rating={item.averageRating || 0}
+                onClick={() =>
+                  navigation.navigate("StoryDetail", { storyId: item.storyId })
+                }
               />
             )}
           />
@@ -219,7 +255,6 @@ export function SearchScreen() {
         currentTagId={filter.tagId}
         currentSort={filter.sort}
       />
-
     </SafeAreaView>
   );
 }
@@ -227,14 +262,40 @@ export function SearchScreen() {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   container: { flex: 1 },
-  headerContainer: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
-  searchBar: { flex: 1, flexDirection: 'row', alignItems: 'center', borderRadius: 20, height: 40, marginRight: 12 },
-  input: { flex: 1, height: '100%', paddingHorizontal: 8, fontSize: 15 },
-  filterButton: { padding: 8, marginRight: 4, position: 'relative' },
+  headerContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  searchBar: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 20,
+    height: 40,
+    marginRight: 12,
+  },
+  input: { flex: 1, height: "100%", paddingHorizontal: 8, fontSize: 15 },
+  filterButton: { padding: 8, marginRight: 4, position: "relative" },
   cancelButton: { paddingVertical: 8, marginLeft: 4 },
-  badge: { position: 'absolute', top: 8, right: 6, width: 8, height: 8, borderRadius: 4, backgroundColor: '#DC3545' },
-  activeFilterBar: { flexDirection: 'row', paddingHorizontal: 16, paddingBottom: 8, alignItems: 'center', justifyContent: 'space-between' },
+  badge: {
+    position: "absolute",
+    top: 8,
+    right: 6,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#DC3545",
+  },
+  activeFilterBar: {
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
   resultList: { padding: 16, paddingTop: 8 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  emptyState: { alignItems: 'center', marginTop: 40, paddingHorizontal: 20 },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  emptyState: { alignItems: "center", marginTop: 40, paddingHorizontal: 20 },
 });
