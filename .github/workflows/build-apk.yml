@@ -36,16 +36,14 @@ jobs:
       - name: Build APK with EAS
         run: |
           echo "Building with profile: production"
-          eas build --platform android --profile production --non-interactive --no-wait
+          eas build --platform android --profile production --non-interactive --no-wait --json > build-output.json
+          BUILD_ID=$(cat build-output.json | jq -r '.id')
+          echo "BUILD_ID=$BUILD_ID" >> $GITHUB_ENV
+          echo "Build ID: $BUILD_ID"
 
       - name: Get build URL and wait for completion
         run: |
-          echo "Waiting for build to complete..."
-
-          # Get the latest build ID
-          BUILD_ID=$(eas build:list --platform android --limit 1 --json | jq -r '.[0].id')
-          echo "BUILD_ID=$BUILD_ID" >> $GITHUB_ENV
-          echo "Build ID: $BUILD_ID"
+          echo "Waiting for build ${{ env.BUILD_ID }} to complete..."
 
           # Poll until build completes (max 30 minutes)
           TIMEOUT=1800
@@ -53,11 +51,11 @@ jobs:
           INTERVAL=30
 
           while [ $ELAPSED -lt $TIMEOUT ]; do
-            STATUS=$(eas build:view $BUILD_ID --json | jq -r '.status')
+            STATUS=$(eas build:view ${{ env.BUILD_ID }} --json | jq -r '.status')
             echo "Build status: $STATUS (${ELAPSED}s elapsed)"
 
             if [ "$STATUS" = "finished" ]; then
-              ARTIFACT_URL=$(eas build:view $BUILD_ID --json | jq -r '.artifacts.buildUrl')
+              ARTIFACT_URL=$(eas build:view ${{ env.BUILD_ID }} --json | jq -r '.artifacts.buildUrl')
               echo "ARTIFACT_URL=$ARTIFACT_URL" >> $GITHUB_ENV
               echo "Build completed successfully!"
               echo "APK URL: $ARTIFACT_URL"
