@@ -29,9 +29,9 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
-      - name: Deploy update to production channel
+      - name: Deploy update to preview channel
         run: |
           COMMIT_MSG=$(git log -1 --pretty=%B)
-          eas update --branch production --message "$COMMIT_MSG"
-          echo "✅ OTA Update deployed to production channel!"
+          eas update --branch preview --message "$COMMIT_MSG"
+          echo "✅ OTA Update deployed to preview channel!"
           echo "Users will receive this update when they open the app."

@@ -35,8 +35,8 @@ jobs:
 
       - name: Build APK with EAS
         run: |
-          echo "Building with profile: production"
-          eas build --platform android --profile production --non-interactive --no-wait > build-output.txt
+          echo "Building with profile: preview"
+          eas build --platform android --profile preview --non-interactive --no-wait > build-output.txt
 
           # Extract build ID from the logs URL
           BUILD_URL=$(grep -oP 'https://expo.dev/accounts/[^/]+/projects/[^/]+/builds/\K[a-f0-9-]+' build-output.txt)
@@ -101,7 +101,7 @@ jobs:
           body: |
             ## 📱 ToraNovel APK Release
 
-            **Build Profile:** `production`
+            **Build Profile:** `preview`
             **Platform:** Android
             **Build ID:** `${{ env.BUILD_ID }}`
             **Commit:** ${{ github.sha }}
@@ -119,7 +119,7 @@ jobs:
             🤖 Built automatically with EAS Build + GitHub Actions
           files: toranovel.apk
           draft: false
-          prerelease: false
+          prerelease: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -127,7 +127,7 @@ jobs:
         run: |
           echo "### ✅ Build Complete!" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Profile:** production" >> $GITHUB_STEP_SUMMARY
+          echo "**Profile:** preview" >> $GITHUB_STEP_SUMMARY
           echo "**Build ID:** ${{ env.BUILD_ID }}" >> $GITHUB_STEP_SUMMARY
           echo "**Version:** ${{ env.VERSION }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
