@@ -56,13 +56,13 @@ jobs:
             STATUS=$(eas build:view ${{ env.BUILD_ID }} --json | jq -r '.status')
             echo "Build status: $STATUS (${ELAPSED}s elapsed)"
 
-            if [ "$STATUS" = "finished" ]; then
+            if [ "$STATUS" = "FINISHED" ]; then
               ARTIFACT_URL=$(eas build:view ${{ env.BUILD_ID }} --json | jq -r '.artifacts.buildUrl')
               echo "ARTIFACT_URL=$ARTIFACT_URL" >> $GITHUB_ENV
               echo "Build completed successfully!"
               echo "APK URL: $ARTIFACT_URL"
               break
-            elif [ "$STATUS" = "errored" ] || [ "$STATUS" = "canceled" ]; then
+            elif [ "$STATUS" = "ERRORED" ] || [ "$STATUS" = "CANCELED" ]; then
               echo "Build failed with status: $STATUS"
               exit 1
             fi
