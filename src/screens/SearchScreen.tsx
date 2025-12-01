@@ -7,11 +7,11 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   TextInput,
+  Image, 
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "../contexts/ThemeProvider";
-import { StoryListItem } from "../components/ui/StoryListItem";
-import { Search, X, SlidersHorizontal } from "lucide-react-native";
+import { Search, X, SlidersHorizontal, Star, User } from "lucide-react-native";
 import { useNavigation } from "@react-navigation/native";
 import { MainTabScreenProps } from "../navigation/types";
 import { Story, storyService, TagItem } from "../api/storyService";
@@ -33,13 +33,12 @@ export function SearchScreen() {
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebounce(query, 500);
 
-  // SỬA: Mặc định là 'latest' (Mới nhất) để luôn có dữ liệu
   const [filter, setFilter] = useState<{
     tagId: string | undefined;
     sort: "weekly" | "latest";
   }>({
     tagId: undefined,
-    sort: "latest", // <--- Đổi thành 'latest'
+    sort: "latest",
   });
 
   const [tags, setTags] = useState<TagItem[]>([]);
@@ -47,7 +46,6 @@ export function SearchScreen() {
   const [results, setResults] = useState<Story[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Kiểm tra xem có đang tìm kiếm thực sự không (để hiển thị nút Back/Mặc định)
   const isSearching =
     debouncedQuery.length > 0 || filter.tagId || filter.sort !== "latest";
 
@@ -76,30 +74,23 @@ export function SearchScreen() {
       setIsLoading(true);
       try {
         const MAX_ITEMS = 100;
-
         let response;
-        // 1. Trường hợp có Search hoặc Filter Tag
         if (debouncedQuery.length > 0 || filter.tagId) {
           response = await storyService.searchStories({
             query: debouncedQuery,
             tagId: filter.tagId,
             page: 1,
-            pageSize: MAX_ITEMS, // Lấy 100 item
+            pageSize: MAX_ITEMS,
           });
           setResults(extractData(response));
-        }
-        // 2. Trường hợp mặc định (Load All / Latest)
-        else {
+        } else {
           if (filter.sort === "weekly") {
-            // API top-weekly thường trả về số lượng cố định,
-            // nếu muốn nhiều hơn phải dùng API Catalog chung
             const res = await storyService.getTopWeekly();
             setResults(extractData(res));
           } else {
-            // "Get All" ở đây: Gọi API Catalog lấy 100 item mới nhất
             const res = await storyService.searchStories({
               page: 1,
-              pageSize: MAX_ITEMS, // Lấy 100 item
+              pageSize: MAX_ITEMS,
             });
             setResults(extractData(res));
           }
@@ -144,7 +135,7 @@ export function SearchScreen() {
         </Text>
         <TouchableOpacity
           onPress={() => {
-            setFilter({ tagId: undefined, sort: "latest" }); // Reset về mặc định
+            setFilter({ tagId: undefined, sort: "latest" });
             setQuery("");
           }}
         >
@@ -160,6 +151,68 @@ export function SearchScreen() {
           </Text>
         </TouchableOpacity>
       </View>
+    );
+  };
+
+  // --- HÀM RENDER ITEM TÙY BIẾN ---
+  const renderItem = ({ item }: { item: Story }) => {
+    return (
+      <TouchableOpacity
+        style={[styles.itemContainer, { backgroundColor: colors.card, borderColor: 'transparent' }]} 
+        onPress={() => navigation.navigate("StoryDetail", { storyId: item.storyId })}
+        activeOpacity={0.7}
+      >
+        {/* Ảnh bìa */}
+        <Image 
+          source={{ uri: item.coverUrl }} 
+          style={styles.itemImage} 
+          resizeMode="cover" 
+        />
+        
+        {/* Thông tin */}
+        <View style={styles.itemInfo}>
+          <Text 
+            numberOfLines={2} 
+            style={[typography.h4, { color: colors.foreground, marginBottom: 4, fontSize: 16 }]}
+          >
+            {item.title}
+          </Text>
+          
+          <View style={styles.metaRow}>
+            <User size={14} color={colors.mutedForeground} />
+            <Text style={{ color: colors.mutedForeground, fontSize: 12, marginLeft: 4 }}>
+              {item.authorUsername}
+            </Text>
+          </View>
+
+          <View style={[styles.metaRow, { marginTop: 4 }]}>
+             <Star size={14} color="#FFD700" fill="#FFD700" />
+             <Text style={{ color: colors.foreground, fontSize: 12, fontWeight: 'bold', marginLeft: 4 }}>
+               {item.averageRating ? item.averageRating.toFixed(1) : "0.0"}
+             </Text>
+          </View>
+
+          {/* --- TAGS HIỂN THỊ Ở DƯỚI RATING --- */}
+          {item.tags && item.tags.length > 0 && (
+            <View style={styles.tagsContainer}>
+              {item.tags.slice(0, 3).map((tag, index) => (
+                <View 
+                  key={tag.tagId || index} 
+                  style={[styles.tagBadge, { backgroundColor: colors.muted }]}
+                >
+                  <Text style={{ color: colors.mutedForeground, fontSize: 10 }}>
+                    {/* SỬA TẠI ĐÂY: Dùng tag.name thay vì tag.tagName */}
+                    {tag.name || (tag as any).tagName} 
+                  </Text>
+                </View>
+              ))}
+              {item.tags.length > 3 && (
+                 <Text style={{ color: colors.mutedForeground, fontSize: 10, alignSelf:'center' }}>...</Text>
+              )}
+            </View>
+          )}
+        </View>
+      </TouchableOpacity>
     );
   };
 
@@ -225,24 +278,11 @@ export function SearchScreen() {
             ListEmptyComponent={
               <View style={styles.emptyState}>
                 <Text style={{ color: colors.mutedForeground }}>
-                  {/* Nếu vào mà ko thấy gì thì chắc chắn DB trống hoặc lỗi mạng */}
                   Không có truyện nào để hiển thị.
                 </Text>
               </View>
             }
-            renderItem={({ item }) => (
-              <StoryListItem
-              storyId={item.storyId}     
-      authorId={item.authorId}
-                title={item.title}
-                cover={item.coverUrl}
-                author={item.authorUsername}
-                rating={item.averageRating || 0}
-                onClick={() =>
-                  navigation.navigate("StoryDetail", { storyId: item.storyId })
-                }
-              />
-            )}
+            renderItem={renderItem}
           />
         )}
       </View>
@@ -298,4 +338,40 @@ const styles = StyleSheet.create({
   resultList: { padding: 16, paddingTop: 8 },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   emptyState: { alignItems: "center", marginTop: 40, paddingHorizontal: 20 },
+
+  // --- STYLES CHO ITEM LIST & TAGS ---
+  itemContainer: {
+    flexDirection: 'row',
+    marginBottom: 16,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  itemImage: {
+    width: 80,
+    height: 110,
+    borderRadius: 6,
+    backgroundColor: '#eee',
+  },
+  itemInfo: {
+    flex: 1,
+    marginLeft: 12,
+    justifyContent: 'flex-start',
+    paddingVertical: 2,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  tagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 8,
+    gap: 6,
+  },
+  tagBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
 });

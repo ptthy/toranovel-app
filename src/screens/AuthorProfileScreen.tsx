@@ -42,14 +42,17 @@ export function AuthorProfileScreen() {
           authorService.getAuthorStories(accountId)
         ]);
         
-        const profileData = profileRes.data;
-        setProfile(profileData);
+      const profileData = profileRes.data;
+setProfile(profileData);
+
+// SỬA LOGIC LẤY SỐ FOLLOWERS
+// Ưu tiên 'totalFollower' (số 101 từ JSON) trước, nếu không có mới tìm các biến khác
 const displayCount = 
-  profileData.author?.totalFollower ??  // Ưu tiên lấy số 101
-  profileData.author?.followerCount ??  // Nếu không có thì lấy số 0
+  profileData.author?.totalFollower ?? // API trả về 101 ở đây
+  profileData.author?.followerCount ?? // Fallback
   0;
 
-setFollowerCount(displayCount); 
+setFollowerCount(displayCount);
 
 
 // Xử lý Follow

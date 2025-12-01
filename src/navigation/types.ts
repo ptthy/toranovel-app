@@ -29,6 +29,7 @@ export type MainStackParamList = {
   EditProfile: undefined;
   StoryDetail: { storyId: string }; 
 Search: undefined;
+Notification: undefined;
   AuthorProfile: { authorId: string };
 };
 
