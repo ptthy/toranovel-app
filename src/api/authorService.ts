@@ -6,13 +6,17 @@ import { Story } from './storyService';
 // 1. Cấu trúc thông tin thống kê tác giả (nằm trong field 'author')
 export interface AuthorStats {
   authorId: string;
-  rankName: string;        // Bronze, Silver...
+  rankName: string;
   rankRewardRate: number;
   rankMinFollowers: number;
-  totalFollower?: number; 
-
-  followerCount: number;      
-  publishedStoryCount: number; 
+  
+  // QUAN TRỌNG: Thêm trường này chính xác như JSON trả về
+  totalFollower: number; 
+  
+  // Các trường khác (có thể API trả về hoặc không, cứ để optional cho an toàn)
+  followerCount?: number; 
+  publishedStoryCount?: number; 
+  totalStory?: number; // JSON có trả về totalStory: 0
   
   isRestricted: boolean;
   isVerified: boolean;
@@ -20,22 +24,15 @@ export interface AuthorStats {
 
 // 2. Cấu trúc Profile trả về từ API /api/PublicProfile/{id}
 export interface PublicProfileResponse {
-  accountId: string;
+ accountId: string;
   username: string;
   avatarUrl: string | null;
   bio: string | null;
-  gender: string;
-  
-  createdAt: string;
   isAuthor: boolean;
+  createdAt: string;
   
-  // Object chứa thông tin thống kê
-  author: AuthorStats | null; 
-
-  // Trạng thái follow. Nếu null = chưa follow. Nếu có object = đang follow
-  followState: { 
-    isNotificationEnabled: boolean 
-  } | null;
+  author: AuthorStats | null;
+  followState: { isNotificationEnabled: boolean } | null;
 }
 
 // 3. Cấu trúc người theo dõi (Follower)

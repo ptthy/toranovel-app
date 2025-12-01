@@ -9,6 +9,7 @@ import { EditProfileScreen } from "../screens/EditProfileScreen";
 import { StoryDetailScreen } from "../screens/StoryDetailScreen";
 import { SearchScreen } from "../screens/SearchScreen";
 import { AuthorProfileScreen } from "../screens/AuthorProfileScreen";
+import { NotificationScreen } from "../screens/NotificationScreen";
 const Stack = createNativeStackNavigator<MainStackParamList>();
 
 export function MainStackNavigator() {
@@ -34,8 +35,13 @@ export function MainStackNavigator() {
       <Stack.Screen
         name="AuthorProfile"
         component={AuthorProfileScreen}
-        options={{ headerShown: false }} // Ẩn header mặc định vì mình đã custom header trong màn hình rồi
+        options={{ headerShown: false }}
       />
+      <Stack.Screen 
+  name="Notification" 
+  component={NotificationScreen} 
+  options={{ headerShown: false }} 
+/>
     </Stack.Navigator>
   );
 }

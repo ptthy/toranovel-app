@@ -1,14 +1,14 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, StatusBar, Platform } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, StatusBar, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeProvider';
 import { Input } from '../components/ui/Input';
-import { StoryCard } from '../components/ui/StoryCard';
-import { Search, BookOpen, Flame, Clock } from 'lucide-react-native';
-
-import { useNavigation } from '@react-navigation/native';
+import { Search, BookOpen, Flame, Clock, Bell } from 'lucide-react-native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native'; // Import useFocusEffect
 import { MainTabScreenProps } from '../navigation/types';
 import { Story, storyService } from '../api/storyService';
+// 👇 Import Service mới
+import { notificationService, NotificationItem } from '../api/notificationService';
 
 export function HomeScreen() {
   const { colors, typography, theme } = useTheme();
@@ -18,8 +18,10 @@ export function HomeScreen() {
   const [weeklyStories, setWeeklyStories] = useState<Story[]>([]);
   const [newStories, setNewStories] = useState<Story[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // State Notification
+  const [notificationCount, setNotificationCount] = useState(0);
 
-  // Helper extract data
   const extractData = (response: any): Story[] => {
     if (!response || !response.data) return [];
     if (response.data.items && Array.isArray(response.data.items)) return response.data.items;
@@ -27,6 +29,7 @@ export function HomeScreen() {
     return [];
   };
 
+  // Hàm tải data truyện
   useEffect(() => {
     const fetchHomeData = async () => {
       try {
@@ -59,8 +62,28 @@ export function HomeScreen() {
     fetchHomeData();
   }, []);
 
-  // Render List
-  const renderStoryList = (stories: Story[], showAuthor: boolean = true) => {
+  // 👇 LOGIC NOTIFICATION MỚI 👇
+  // Dùng useFocusEffect để mỗi khi quay lại Home thì update số lượng thông báo
+  useFocusEffect(
+    useCallback(() => {
+      const fetchNotifications = async () => {
+        try {
+          const res = await notificationService.getNotifications(1, 20); // Lấy 20 tin mới nhất
+          if (res.data && res.data.items) {
+            // Đếm số lượng tin chưa đọc (isRead === false)
+            const unread = res.data.items.filter((item: NotificationItem) => !item.isRead).length;
+            setNotificationCount(unread);
+          }
+        } catch (error) {
+          console.log("Lỗi tải thông báo:", error);
+        }
+      };
+
+      fetchNotifications();
+    }, [])
+  );
+
+  const renderStoryList = (stories: Story[]) => {
     if (stories.length === 0) {
       return (
         <Text style={{ color: colors.mutedForeground, marginLeft: 20, fontStyle: 'italic' }}>
@@ -73,30 +96,55 @@ export function HomeScreen() {
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }} 
+        contentContainerStyle={{ paddingHorizontal: 16 }} 
       >
         {stories.map((story, index) => (
-          <StoryCard
-            key={story.storyId ? `${story.storyId}-${index}` : `story-${index}`} 
-            title={story.title}
-            cover={story.coverUrl}
-           
-            onClick={() => navigation.navigate('StoryDetail', { storyId: story.storyId })}
-          />
+          <TouchableOpacity 
+            key={story.storyId ? `${story.storyId}-${index}` : `story-${index}`}
+            activeOpacity={0.7}
+            onPress={() => navigation.navigate('StoryDetail', { storyId: story.storyId })}
+            style={{ width: 105, marginRight: 12 }} 
+          >
+            <Image 
+              source={{ uri: story.coverUrl }} 
+              style={{ 
+                width: 105, 
+                height: 155, 
+                borderRadius: 8, 
+                backgroundColor: '#e1e1e1' 
+              }}
+              resizeMode="cover"
+            />
+            <Text 
+              numberOfLines={2} 
+              style={[
+                typography.p, 
+                { 
+                  color: colors.foreground, 
+                  fontWeight: '600', 
+                  fontSize: 13, 
+                  marginTop: 6,
+                  lineHeight: 18
+                }
+              ]}
+            >
+              {story.title}
+            </Text>
+            <Text numberOfLines={1} style={{ color: colors.mutedForeground, fontSize: 11, marginTop: 2 }}>
+               {story.authorUsername || "Tác giả"}
+            </Text>
+          </TouchableOpacity>
         ))}
       </ScrollView>
     );
   };
 
-  // --- 1. MÀU NỀN MỚI ---
-  const lightBg = '#F7F3E8'; // Màu kem bạn yêu cầu
+  const lightBg = '#F7F3E8'; 
   const darkBg = '#0F0F0F';
-  
   const bgStyle = { backgroundColor: theme === 'light' ? lightBg : darkBg };
-  
-  // Màu nền cho Header & SearchBar hòa hợp
   const headerBg = theme === 'light' ? lightBg : '#1A1A1A';
-  const searchBarBg = theme === 'light' ? '#EBE7DC' : '#282828'; // Tối hơn nền 1 chút để nổi
+  const searchBarBg = theme === 'light' ? '#EBE7DC' : '#282828';
+  const iconColor = theme === 'light' ? '#333' : '#FFF';
 
   return (
     <SafeAreaView style={[styles.flex, bgStyle]} edges={['top']}> 
@@ -113,25 +161,36 @@ export function HomeScreen() {
                ToraNovel
              </Text>
           </View>
+
+      
+          <TouchableOpacity 
+            style={styles.notificationButton}
+           
+            onPress={() => navigation.navigate('Notification')} 
+          >
+            <Bell size={24} color={iconColor} />
+            {notificationCount > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>
+                  {notificationCount > 9 ? '9+' : notificationCount}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
         </View>
 
-        {/* --- 2. FIX SEARCH BAR --- */}
-        <TouchableOpacity 
-          activeOpacity={0.9} 
-          onPress={() => navigation.navigate('Search')}
-        >
+        <TouchableOpacity activeOpacity={0.9} onPress={() => navigation.navigate('Search')}>
           <View pointerEvents="none">
             <Input
               placeholder="Tìm kiếm truyện, tác giả..."
               placeholderTextColor={colors.mutedForeground}
               leftIcon={<Search size={18} color={colors.mutedForeground} />}
               editable={false} 
-              // BorderWidth = 0 để bỏ khung, chỉnh background cho tiệp màu
               style={{ 
                 backgroundColor: searchBarBg, 
                 borderWidth: 0, 
                 height: 42,
-                borderRadius: 21, // Bo tròn hơn
+                borderRadius: 21,
                 fontSize: 14
               }}
             />
@@ -150,8 +209,7 @@ export function HomeScreen() {
           </View>
         ) : (
           <View>
-            
-            {/* SECTION 1: TOP TRUYỆN TUẦN */}
+            {/* Top Truyện Tuần */}
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <View style={styles.sectionTitleRow}>
@@ -166,10 +224,10 @@ export function HomeScreen() {
                   </Text>
                 </TouchableOpacity>
               </View>
-              {renderStoryList(weeklyStories, true)} 
+              {renderStoryList(weeklyStories)} 
             </View>
 
-            {/* SECTION 2: MỚI CẬP NHẬT */}
+            {/* Mới Cập Nhật */}
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <View style={styles.sectionTitleRow}>
@@ -184,13 +242,10 @@ export function HomeScreen() {
                   </Text>
                 </TouchableOpacity>
               </View>
-              {renderStoryList(newStories, false)}
+              {renderStoryList(newStories)}
             </View>
 
-            {/* --- 3. FIX FOOTER BỊ CHE --- */}
-            {/* Tăng chiều cao khoảng trống cuối cùng lên 100 để đẩy nội dung lên trên TabBar */}
             <View style={{ height: 100 }} />
-
           </View>
         )}
       </ScrollView>
@@ -200,20 +255,23 @@ export function HomeScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  
   headerContainer: {
     paddingHorizontal: 16, paddingTop: 8, paddingBottom: 16,
-    // Shadow nhẹ hơn nữa
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.02, shadowRadius: 4, elevation: 1, zIndex: 10,
     borderBottomWidth: 1,
   },
   headerTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   logoGroup: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   logoIcon: { width: 28, height: 28, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
-  
+  notificationButton: { position: 'relative', padding: 4 },
+  badge: {
+    position: 'absolute', top: 0, right: 0, backgroundColor: '#FF3B30', borderRadius: 10,
+    minWidth: 16, height: 16, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, borderColor: '#FFF',
+  },
+  badgeText: { color: '#FFF', fontSize: 9, fontWeight: 'bold', paddingHorizontal: 2 },
   scrollContent: { paddingTop: 24 },
   section: { marginBottom: 32 },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, marginBottom: 16 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, marginBottom: 12 },
   sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sectionTitle: { fontWeight: '700', fontSize: 18, letterSpacing: 0.3 },
 });

@@ -38,7 +38,7 @@ export function MiniPlayer({ visible, isPlaying, voiceName, onPlayPause, onClose
 
 const styles = StyleSheet.create({
   container: {
-    position: 'absolute', bottom: 80, // Nằm trên Bottom Bar
+    
     left: 16, right: 16,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     padding: 12, borderRadius: 12,

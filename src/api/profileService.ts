@@ -1,7 +1,6 @@
 import apiClient from './apiClient';
 
-// --- 1. Định nghĩa Type cho Profile (dựa trên API của bạn) ---
-
+// --- 1. Định nghĩa Type ---
 export interface UserProfile {
   accountId: string;
   username: string;
@@ -10,67 +9,50 @@ export interface UserProfile {
   bio: string | null;
   gender: 'unspecified' | 'M' | 'F';
   birthday: string | null;
-dias: number;
+  dias: number; // Field tự gộp từ ví
 }
 
-// Type cho PUT /api/Profile
 interface UpdateProfileData {
   bio?: string;
   gender?: 'unspecified' | 'M' | 'F';
-  birthday?: string | null; // <-- ĐÃ SỬA LỖI Ở ĐÂY
+  birthday?: string | null;
 }
 
-// Type cho POST /api/Profile/email/otp
-interface NewEmailData {
-  newEmail: string;
-}
-
-// Type cho POST /api/Profile/email/verify
-interface VerifyEmailOtpData {
-  otp: string;
-}
-
-// --- 2. Tạo đối tượng Profile Service ---
-
+// --- 2. Service ---
 export const profileService = {
-  /**
-   * GET /api/Profile
-   * Lấy thông tin profile của user hiện tại (đã login)
-   */
-  getProfile: () => {
-    return apiClient.get<UserProfile>('/api/Profile');
+  getProfile: async () => {
+    try {
+      // 1. Gọi API Profile gốc
+      const profilePromise = apiClient.get<any>('/api/Profile');
+      
+      // 2. Gọi API Wallet (ĐÃ SỬA ĐƯỜNG DẪN ĐÚNG)
+      // Thêm ?t=... để tránh cache như trong AuthContext của bạn
+      const walletPromise = apiClient.get(`/api/Profile/wallet?t=${new Date().getTime()}`)
+        .then(res => res.data?.diaBalance ?? 0) // Lấy diaBalance
+        .catch((err) => {
+            console.log("Lỗi gọi Wallet:", err);
+            return 0;
+        });
+
+      // 3. Chạy song song
+      const [profileRes, diasAmount] = await Promise.all([profilePromise, walletPromise]);
+
+      // 4. Gộp dữ liệu
+      const mergedData: UserProfile = {
+        ...profileRes.data,
+        dias: diasAmount, 
+      };
+
+      return { data: mergedData };
+
+    } catch (error) {
+      console.error("Lỗi lấy profile:", error);
+      throw error;
+    }
   },
 
-  /**
-   * PUT /api/Profile
-   * Cập nhật thông tin bio, gender, birthday
-   */
-  updateProfile: (data: UpdateProfileData) => {
-    return apiClient.put('/api/Profile', data);
-  },
-
-  /**
-   * POST /api/Profile/avatar
-   * Upload avatar mới. Dùng FormData.
-   */
-  uploadAvatar: (formData: FormData) => {
-    // API client đã được cấu hình để tự động xử lý header 'multipart/form-data'
-    return apiClient.post<{ avatarUrl: string }>('/api/Profile/avatar', formData);
-  },
-
-  /**
-   * POST /api/Profile/email/otp
-   * Yêu cầu gửi OTP để đổi email
-   */
-  requestEmailChange: (data: NewEmailData) => {
-    return apiClient.post('/api/Profile/email/otp', data);
-  },
-
-  /**
-   * POST /api/Profile/email/verify
-   * Xác thực OTP để hoàn tất đổi email
-   */
-  verifyEmailChange: (data: VerifyEmailOtpData) => {
-    return apiClient.post('/api/Profile/email/verify', data);
-  },
+  updateProfile: (data: UpdateProfileData) => apiClient.put('/api/Profile', data),
+  uploadAvatar: (formData: FormData) => apiClient.post<{ avatarUrl: string }>('/api/Profile/avatar', formData),
+  requestEmailChange: (data: any) => apiClient.post('/api/Profile/email/otp', data),
+  verifyEmailChange: (data: any) => apiClient.post('/api/Profile/email/verify', data),
 };

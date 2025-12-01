@@ -155,24 +155,7 @@ export function ProfileScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Stats Card */}
-        <View style={[styles.card, { backgroundColor: colors.card }]}>
-          <Text style={[typography.h4, { color: colors.foreground, marginBottom: 16 }]}>Thống kê</Text>
-          <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <Text style={[typography.h2, { color: colors.foreground, fontWeight: '600' }]}>24</Text>
-              <Text style={[typography.p, { color: colors.mutedForeground, fontSize: 11 }]}>Đang đọc</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={[typography.h2, { color: colors.foreground, fontWeight: '600' }]}>156</Text>
-              <Text style={[typography.p, { color: colors.mutedForeground, fontSize: 11 }]}>Đã lưu</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={[typography.h2, { color: colors.foreground, fontWeight: '600' }]}>89</Text>
-              <Text style={[typography.p, { color: colors.mutedForeground, fontSize: 11 }]}>Đã hoàn thành</Text>
-            </View>
-          </View>
-        </View>
+      
         
         {/* Logout Button */}
         <TouchableOpacity 
@@ -216,7 +199,7 @@ const styles = StyleSheet.create({
   xuCard: { borderRadius: 16, padding: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, elevation: 5 },
   xuHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
   xuTitle: { flexDirection: 'row', alignItems: 'center' },
-  topupButton: { backgroundColor: '#F7F3E8', height: 44 },
+  topupButton: { backgroundColor: '#f7f3e8ff', height: 44 },
   topupButtonText: { color: '#1E5162', fontWeight: '600' },
   settingsHeader: { padding: 16 },
   menuItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16 },
