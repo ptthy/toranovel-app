@@ -1,211 +1,305 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useTheme } from '../contexts/ThemeProvider';
-import { Image } from 'expo-image';
-import { Separator } from '../components/ui/Separator';
-import { Button } from '../components/ui/Button';
-import { LinearGradient } from 'expo-linear-gradient';
-// Thay Coins bằng Diamond
-import { ChevronRight, LogOut, Edit, Settings, Diamond, Camera } from 'lucide-react-native';
+import React, { useState, useCallback } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+  ActivityIndicator
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import {
+  Settings,
+  Bell,
+  Library,
+  History,
+  ChevronRight,
+  LogOut,
+  Camera, // Icon cho nút đổi ảnh avatar
+  UserPen, // Icon cho nút sửa thông tin trên header
+  Crown,
+  Wallet,
+  ShieldCheck, 
+  Users,
+  Calendar,
+} from "lucide-react-native";
+import * as ImagePicker from 'expo-image-picker'; 
 
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { MainTabScreenProps } from '../navigation/types';
-import { useAuth } from '../contexts/AuthContext'; 
+import { useTheme } from "../contexts/ThemeProvider";
+import { useAuth } from "../contexts/AuthContext";
+import { storyService } from "../api/storyService"; 
+import { MainStackParamList } from "../navigation/types";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
-import * as ImagePicker from 'expo-image-picker';
-import MaterialIcons from '@react-native-vector-icons/material-icons';
+const getRoleBadgeConfig = (role: string) => {
+  switch (role.toLowerCase()) {
+    case "admin": return { label: "Quản trị viên", color: "#E74C3C", bg: "#FDEDEC" };
+    case "author": return { label: "Tác giả", color: "#8E44AD", bg: "#F4ECF7" };
+    case "reader": return { label: "Độc giả", color: "#2980B9", bg: "#EBF5FB" };
+    default: return { label: role, color: "#7F8C8D", bg: "#F2F3F4" };
+  }
+};
 
 export function ProfileScreen() {
-  const { colors, typography, theme } = useTheme();
-  const navigation = useNavigation<MainTabScreenProps<'Profile'>['navigation']>();
-  
-  // Lấy thêm hàm fetchUserProfile để cập nhật số dư
-  const { user, signOut, uploadAvatar, fetchUserProfile } = useAuth();
-  
-  const [isUploading, setIsUploading] = useState(false);
+  const { colors, typography } = useTheme();
+  const { user, signOut, fetchUserProfile, uploadAvatar } = useAuth();
+  const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
 
-  // TỰ ĐỘNG CẬP NHẬT SỐ DƯ KHI QUAY LẠI MÀN HÌNH NÀY
+  const [isPremium, setIsPremium] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
   useFocusEffect(
     useCallback(() => {
-      fetchUserProfile();
+      fetchData();
     }, [])
   );
 
-  const gradientColors =
-    theme === 'light'
-      ? ['#1E5162', '#2C6B7C'] as const
-      : ['#1A3D49', '#1E5162'] as const;
+  const fetchData = async () => {
+    await fetchUserProfile();
+    const premiumStatus = await storyService.checkPremiumStatus();
+    setIsPremium(premiumStatus);
+  };
 
-  const handleAvatarPress = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert('Cần quyền', 'Vui lòng cấp quyền truy cập thư viện ảnh để đổi avatar.');
-      return;
-    }
+  const handleLogout = () => {
+    Alert.alert("Đăng xuất", "Bạn có chắc chắn muốn đăng xuất?", [
+      { text: "Hủy", style: "cancel" },
+      { text: "Đăng xuất", style: "destructive", onPress: signOut },
+    ]);
+  };
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: 'images',
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-
-    if (!result.canceled && result.assets && result.assets.length > 0) {
-      setIsUploading(true);
-      const uri = result.assets[0].uri;
-      
-      const success = await uploadAvatar(uri);
-      
-      if (!success) {
-        Alert.alert('Lỗi', 'Upload ảnh thất bại. Vui lòng thử lại.');
+  // 1. Xử lý đổi Avatar (Bấm vào nút máy ảnh ở Avatar)
+  const handlePickAvatar = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert("Lỗi", "Cần quyền truy cập thư viện ảnh để đổi Avatar.");
+        return;
       }
-      setIsUploading(false);
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.5,
+      });
+
+      if (!result.canceled && result.assets[0].uri) {
+        setUploading(true);
+        const success = await uploadAvatar(result.assets[0].uri);
+        setUploading(false);
+        if (success) Alert.alert("Thành công", "Đã cập nhật ảnh đại diện!");
+        else Alert.alert("Lỗi", "Không thể cập nhật ảnh đại diện.");
+      }
+    } catch (error) {
+      console.error(error);
+      setUploading(false);
+      Alert.alert("Lỗi", "Có lỗi xảy ra khi chọn ảnh.");
     }
   };
 
+  // 2. Chuyển sang màn hình Edit (Bấm nút trên Header)
+  const handleNavigateEdit = () => {
+    navigation.navigate("EditProfile");
+  };
+
+  const MenuItem = ({ icon: Icon, label, onPress, isDestructive = false }: any) => (
+    <TouchableOpacity
+      style={[styles.menuItem, { backgroundColor: colors.card, borderColor: colors.border }]}
+      onPress={onPress}
+    >
+      <View style={styles.menuLeft}>
+        <View style={[styles.iconBox, { backgroundColor: isDestructive ? "#FDEDEC" : colors.background }]}>
+          <Icon size={20} color={isDestructive ? "#E74C3C" : colors.primary} />
+        </View>
+        <Text style={[typography.p, { color: isDestructive ? "#E74C3C" : colors.foreground, fontWeight: "600", marginLeft: 12 }]}>
+          {label}
+        </Text>
+      </View>
+      <ChevronRight size={20} color={colors.mutedForeground} />
+    </TouchableOpacity>
+  );
+
   return (
-    <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <Text style={[typography.h2, { color: colors.foreground }]}>Cá nhân</Text>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      
+      {/* --- NEW HEADER BAR (Top Bar) --- */}
+      <View style={styles.topBar}>
+          <Text style={[typography.h3, { color: colors.foreground }]}>Cá nhân</Text>
+          
+          {/* Nút Edit Profile nằm ở góc phải (Vị trí bạn khoanh tròn) */}
+          <TouchableOpacity onPress={handleNavigateEdit} style={styles.topBarBtn}>
+              <UserPen size={22} color={colors.primary} />
+          </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.container}>
-        {/* Profile Card */}
-        <View style={[styles.card, { backgroundColor: colors.card }]}>
-          <View style={styles.profileHeader}>
-            <TouchableOpacity onPress={handleAvatarPress} disabled={isUploading}>
-              <Image
-                source={user?.avatarUrl ? { uri: user.avatarUrl } : null}
-                style={styles.avatar}
-              />
-              <View style={styles.avatarOverlay}>
-                {isUploading ? (
-                  <ActivityIndicator size="small" color="#FFF" />
-                ) : (
-                  <Camera size={16} color="#FFF" />
-                )}
-              </View>
-            </TouchableOpacity>
-            
-            <View style={styles.flex}>
-              <Text style={[typography.h3, { color: colors.foreground }]}>{user?.username || 'Đang tải...'}</Text>
-              <Text style={[typography.p, { color: colors.mutedForeground, marginTop: 4 }]}>
-                {user?.email || ''}
-              </Text>
-            </View>
-          </View>
-          <Text style={[typography.p, { color: colors.mutedForeground, marginVertical: 16 }]}>
-            {user?.bio || 'Chưa có tiểu sử.'}
-          </Text>
-          
-          <TouchableOpacity 
-            style={[styles.editButton, { backgroundColor: colors.muted }]}
-            onPress={() => navigation.navigate('EditProfile')}
-          >
-            <Edit size={18} color={colors.foreground} />
-            <Text style={[typography.button, { color: colors.foreground, fontWeight: '500', marginLeft: 8 }]}>
-              Chỉnh sửa hồ sơ
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* === THAY ĐỔI Ở ĐÂY: Dias Card === */}
-        <LinearGradient colors={gradientColors} style={styles.xuCard}>
-          <View style={styles.xuHeader}>
-            <View style={styles.xuTitle}>
-              {/* Icon Kim Cương */}
-            <MaterialIcons name="diamond" size={24} color="#FFFF" />
-              {/* Đổi chữ thành Dias */}
-              <Text style={[typography.p, { color: '#F7F3E8', marginLeft: 8, fontWeight: '600' }]}>Dias</Text>
-            </View>
-            {/* Hiển thị số Dias thực từ User (nếu chưa có thì hiện 0) */}
-            <Text style={[typography.h1, { color: '#F7F3E8', fontWeight: '700' }]}>
-              {user?.dias ? user.dias.toLocaleString() : '0'}
-            </Text>
-          </View>
-          <Button
-            // Đổi chữ thành Nâng cấp gói
-            title="Nâng cấp gói"
-            onPress={() => navigation.navigate('TopUp')}
-            style={styles.topupButton}
-            textStyle={styles.topupButtonText}
-          />
-        </LinearGradient>
-        {/* ================================= */}
-
-        {/* Settings Card */}
-        <View style={[styles.card, { backgroundColor: colors.card, paddingVertical: 0 }]}>
-          <View style={styles.settingsHeader}>
-            <Text style={[typography.h4, { color: colors.foreground }]}>Cài đặt</Text>
-          </View>
-          <Separator />
-          <TouchableOpacity 
-            style={styles.menuItem}
-            onPress={() => navigation.navigate('Settings')}
-          >
-            <View style={styles.menuItemLeft}>
-              <Settings size={20} color={colors.mutedForeground} />
-              <Text style={[typography.body, { color: colors.foreground, marginLeft: 12 }]}>
-                Cài đặt ứng dụng
-              </Text>
-            </View>
-            <ChevronRight size={20} color={colors.mutedForeground} />
-          </TouchableOpacity>
-        </View>
-
-      
+      <ScrollView contentContainerStyle={styles.scrollContent}>
         
-        {/* Logout Button */}
-        <TouchableOpacity 
-          style={[styles.logoutButton, { backgroundColor: colors.card, borderColor: colors.border }]}
-          onPress={signOut}
-        >
-          <LogOut size={20} color="#DC3545" />
-          <Text style={styles.logoutText}>Đăng xuất</Text>
-        </TouchableOpacity>
+        {/* --- INFO SECTION --- */}
+        <View style={styles.header}>
+          <View style={styles.avatarContainer}>
+            {uploading ? (
+                 <View style={[styles.avatar, {justifyContent: 'center', alignItems: 'center', backgroundColor: '#ddd'}]}>
+                     <ActivityIndicator color={colors.primary} />
+                 </View>
+            ) : (
+                <Image
+                  source={{ uri: user?.avatarUrl || "https://i.pravatar.cc/150?img=12" }}
+                  style={styles.avatar}
+                />
+            )}
+            
+            {/* Nút đổi Avatar (Camera) nằm tại Avatar */}
+            <TouchableOpacity 
+                style={[styles.cameraBadge, { backgroundColor: colors.primary, borderColor: colors.background }]}
+                onPress={handlePickAvatar}
+            >
+                <Camera size={14} color="#FFF" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Username */}
+          <Text style={[typography.h3, { color: colors.foreground, marginTop: 12 }]}>
+            {user?.username || "Người dùng"}
+          </Text>
+
+          <Text style={[typography.p, { color: colors.mutedForeground, fontSize: 13 }]}>
+            {user?.email}
+          </Text>
+
+          {/* BIO SECTION */}
+          {user?.bio ? (
+            <Text style={{ color: colors.foreground, textAlign: 'center', marginTop: 8, paddingHorizontal: 20, fontStyle: 'italic' }}>
+              "{user.bio}"
+            </Text>
+          ) : (
+            <Text style={{ color: colors.mutedForeground, textAlign: 'center', marginTop: 8, fontSize: 12 }}>
+              Chưa có giới thiệu
+            </Text>
+          )}
+
+          {/* INFO ROW (Chỉ hiện Ngày sinh, ĐÃ ẨN GIỚI TÍNH) */}
+          <View style={{flexDirection: 'row', gap: 16, marginTop: 8}}>
+             {user?.dateOfBirth && (
+                <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                    <Calendar size={12} color={colors.mutedForeground} />
+                    <Text style={{fontSize: 12, color: colors.mutedForeground, marginLeft: 4}}>
+                        {new Date(user.dateOfBirth).toLocaleDateString('vi-VN')}
+                    </Text>
+                </View>
+             )}
+          </View>
+
+          {/* BADGES */}
+          <View style={styles.badgeRow}>
+            {user?.roles && user.roles.map((role: string, index: number) => {
+                const conf = getRoleBadgeConfig(role);
+                return (
+                    <View key={index} style={[styles.badge, { backgroundColor: conf.bg }]}>
+                        <ShieldCheck size={12} color={conf.color} />
+                        <Text style={[styles.badgeText, { color: conf.color }]}>{conf.label}</Text>
+                    </View>
+                );
+            })}
+            {isPremium && (
+              <View style={[styles.badge, { backgroundColor: "#FFF8E1" }]}>
+                <Crown size={12} color="#F1C40F" fill="#F1C40F" />
+                <Text style={[styles.badgeText, { color: "#F39C12" }]}>Premium</Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* --- WALLET --- */}
+        <View style={[styles.walletCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View>
+                <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>Số dư khả dụng</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                    <Text style={{ fontSize: 24, fontWeight: '800', color: colors.primary }}>
+                        {user?.dias?.toLocaleString() || 0}
+                    </Text>
+                    <Wallet size={20} color={colors.primary} style={{ marginLeft: 8 }} />
+                </View>
+            </View>
+            <TouchableOpacity 
+                style={[styles.topUpBtn, { backgroundColor: colors.primary }]}
+                onPress={() => navigation.navigate("TopUp")}
+            >
+                <Text style={{ color: '#FFF', fontWeight: 'bold', fontSize: 12 }}>Nạp ngay</Text>
+            </TouchableOpacity>
+        </View>
+
+        {/* --- ACTIONS --- */}
+        <Text style={[typography.h4, { color: colors.foreground, marginVertical: 16, marginLeft: 4 }]}>Tiện ích</Text>
+
+        <View style={styles.menuSection}>
+          <MenuItem icon={Bell} label="Thông báo" onPress={() => navigation.navigate("Notification")} />
+          
+          <MenuItem 
+            icon={Users} 
+            label="Đang theo dõi" 
+            onPress={() => Alert.alert("Tính năng", "Đang phát triển: Danh sách tác giả đang theo dõi")} 
+          />
+          
+          <MenuItem icon={Library} label="Thư viện của tôi" onPress={() => navigation.navigate("MainTabs", { screen: "Library" })} />
+          <MenuItem icon={History} label="Lịch sử giao dịch" onPress={() => navigation.navigate("MainTabs", { screen: "History" })} />
+          {/* Đã xóa mục "Chỉnh sửa hồ sơ" ở đây vì đã đưa lên Header */}
+          <MenuItem icon={Settings} label="Cài đặt" onPress={() => navigation.navigate("Settings")} />
+        </View>
+
+        {/* --- LOGOUT --- */}
+        <View style={{ marginTop: 24 }}>
+             <MenuItem icon={LogOut} label="Đăng xuất" onPress={handleLogout} isDestructive />
+        </View>
+        
+        <Text style={{ textAlign: 'center', color: colors.mutedForeground, fontSize: 10, marginTop: 32 }}>
+            Phiên bản 1.0.0
+        </Text>
+
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
-  header: { borderBottomWidth: 1, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, elevation: 2 },
-  container: { padding: 16, gap: 16 },
-  card: { borderRadius: 12, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, elevation: 2 },
-  profileHeader: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  avatar: { 
-    width: 80, 
-    height: 80, 
-    borderRadius: 40,
-    backgroundColor: '#eee', 
-  },
-  avatarOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
+  container: { flex: 1 },
+  // Style cho Header Bar mới
+  topBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#FFF',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
   },
-  editButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 10 },
-  xuCard: { borderRadius: 16, padding: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, elevation: 5 },
-  xuHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
-  xuTitle: { flexDirection: 'row', alignItems: 'center' },
-  topupButton: { backgroundColor: '#f7f3e8ff', height: 44 },
-  topupButtonText: { color: '#1E5162', fontWeight: '600' },
-  settingsHeader: { padding: 16 },
-  menuItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16 },
-  menuItemLeft: { flexDirection: 'row', alignItems: 'center' },
-  statsRow: { flexDirection: 'row', justifyContent: 'space-around' },
-  statItem: { alignItems: 'center' },
-  logoutButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 16, borderRadius: 12, borderWidth: 1 },
-  logoutText: { color: '#DC3545', fontWeight: '600', fontSize: 16 },
+  topBarBtn: {
+    padding: 8,
+  },
+
+  scrollContent: { padding: 20, paddingTop: 0 }, // Giảm padding top vì đã có topBar
+  
+  header: { alignItems: "center", marginBottom: 20 },
+  avatarContainer: { position: "relative" },
+  avatar: { width: 90, height: 90, borderRadius: 45, borderWidth: 3, borderColor: "#fff" },
+  
+  // Style nút camera đổi ảnh
+  cameraBadge: { 
+    position: "absolute", 
+    bottom: 0, 
+    right: 0, 
+    padding: 6, 
+    borderRadius: 20, 
+    borderWidth: 2 
+  },
+  
+  badgeRow: { flexDirection: "row", marginTop: 12, gap: 8, flexWrap: 'wrap', justifyContent: 'center' },
+  badge: { flexDirection: "row", alignItems: "center", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, gap: 4 },
+  badgeText: { fontSize: 11, fontWeight: "700" },
+  walletCard: { padding: 16, borderRadius: 16, borderWidth: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, elevation: 1 },
+  topUpBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
+  menuSection: { gap: 12 },
+  menuItem: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderRadius: 12, borderWidth: 1 },
+  menuLeft: { flexDirection: "row", alignItems: "center" },
+  iconBox: { width: 36, height: 36, borderRadius: 10, justifyContent: "center", alignItems: "center" },
 });

@@ -5,22 +5,23 @@ import {
   useWindowDimensions, Modal
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-// Import Icons (Đã thêm Pause, Play)
 import { ArrowLeft, MessageSquare, Settings, ChevronLeft, ChevronRight, Flag, Languages, X, Music, Menu, Pause, Play } from 'lucide-react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Audio } from 'expo-av';
-import RenderHtml from 'react-native-render-html';
+import RenderHtml, { defaultSystemFonts } from 'react-native-render-html';
 
-import { chapterService, ChapterVoiceStatus, storyService } from '../api/storyService';
 import { useTheme } from '../contexts/ThemeProvider';
 import { CommentModal } from '../components/ui/CommentModal';
 import { ReportModal } from '../components/ui/ReportModal';
 import { ReaderSettingsModal, READER_THEMES, READER_FONTS } from '../components/ui/ReaderSettingsModal';
 import { MiniPlayer } from '../components/ui/MiniPlayer';
+import { chapterService, ChapterVoiceStatus, storyService } from '../api/storyService';
 
 const R2_BASE_URL = "https://pub-15618311c0ec468282718f80c66bcc13.r2.dev";
 
-// List ngôn ngữ dịch
+// Thêm các font tùy chỉnh
+const systemFonts = [...defaultSystemFonts, 'Poppins', 'Times New Roman', 'serif', 'sans-serif', 'monospace'];
+
 const SUPPORTED_LANGUAGES = [
   { code: 'vi-VN', name: 'Tiếng Việt' },
   { code: 'en-US', name: 'English' },
@@ -41,7 +42,7 @@ export function ReaderScreen() {
   const [controlsVisible, setControlsVisible] = useState(true);
   const [fontSize, setFontSize] = useState(18);
   const [themeId, setThemeId] = useState('sepia');
-  const [fontId, setFontId] = useState('serif');
+  const [fontId, setFontId] = useState('times');
   const [isLoading, setIsLoading] = useState(true);
   
   // --- DATA ---
@@ -57,11 +58,11 @@ export function ReaderScreen() {
 
   // --- MOOD MUSIC ---
   const [bgMusicSound, setBgMusicSound] = useState<Audio.Sound | null>(null);
-  const [currentMusicIndex, setCurrentMusicIndex] = useState<number | null>(null); // Index bài đang phát
-  const [musicPaths, setMusicPaths] = useState<string[]>([]); // Danh sách nhạc của chương
+  const [currentMusicIndex, setCurrentMusicIndex] = useState<number | null>(null); 
+  const [musicPaths, setMusicPaths] = useState<string[]>([]); 
   const [currentMoodName, setCurrentMoodName] = useState("");
 
-  // --- VOICE ---
+  // --- VOICE (Audio) ---
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [isPlayingVoice, setIsPlayingVoice] = useState(false);
   const [isPlayerVisible, setIsPlayerVisible] = useState(false);
@@ -77,13 +78,22 @@ export function ReaderScreen() {
   const currentTheme = READER_THEMES[themeId as keyof typeof READER_THEMES];
   const currentFont = READER_FONTS[fontId as keyof typeof READER_FONTS];
 
-  const tagsStyles = useMemo(() => ({
-    body: { color: currentTheme.text, fontSize: fontSize, fontFamily: currentFont.family, lineHeight: fontSize * 1.5, textAlign: 'justify' as const },
-    p: { marginBottom: 10 },
-    h1: { fontSize: fontSize * 1.5, fontWeight: 'bold' as const, marginBottom: 16 },
-  }), [currentTheme, fontSize, currentFont]);
+  // Base style cho RenderHTML
+  const baseStyle = useMemo(() => ({
+    fontFamily: currentFont.family,
+    fontSize: fontSize,
+    color: currentTheme.text,
+    lineHeight: fontSize * 1.5,
+    textAlign: 'justify' as const,
+  }), [currentFont, fontSize, currentTheme]);
 
-  // Cleanup
+  const tagsStyles = useMemo(() => ({
+    p: { marginBottom: 10 },
+    h1: { fontSize: fontSize * 1.5, fontWeight: 'bold' as const, marginBottom: 16, fontFamily: currentFont.family },
+    h2: { fontSize: fontSize * 1.3, fontWeight: 'bold' as const, marginBottom: 12, fontFamily: currentFont.family },
+  }), [fontSize, currentFont]);
+
+  // Cleanup khi thoát màn hình
   useEffect(() => {
     return () => {
       if (bgMusicSound) bgMusicSound.unloadAsync();
@@ -91,29 +101,37 @@ export function ReaderScreen() {
     };
   }, [bgMusicSound, sound]);
 
-  // Load Chapter List
+  // Load danh sách chương
   useEffect(() => {
     storyService.getChapters(storyId).then(res => {
       if (res.data.items) setChaptersList(res.data.items.sort((a: any, b: any) => a.chapterNo - b.chapterNo));
     });
   }, [storyId]);
 
-  // --- LOAD CHAPTER ---
+  // --- LOAD NỘI DUNG CHƯƠNG ---
   const loadChapter = async (targetId: string) => {
     setIsLoading(true);
     setCurrentLang('original');
     
-    // Stop all audio
-    if (bgMusicSound) { await bgMusicSound.unloadAsync(); setBgMusicSound(null); setCurrentMusicIndex(null); }
-    if (sound) { await sound.unloadAsync(); setSound(null); setIsPlayingVoice(false); setIsPlayerVisible(false); }
+    // Dừng nhạc nền & giọng đọc cũ
+    if (bgMusicSound) { 
+        try { await bgMusicSound.unloadAsync(); } catch(e){} 
+        setBgMusicSound(null); setCurrentMusicIndex(null); 
+    }
+    if (sound) { 
+        try { await sound.unloadAsync(); } catch(e){} 
+        setSound(null); setIsPlayingVoice(false); setIsPlayerVisible(false); 
+    }
 
     try {
       const res = await chapterService.getChapterDetail(targetId);
       const data = res.data; 
-      setChapterTitle(data.title);
+      if(!data) throw new Error("No Data");
 
-      // Xử lý Mood Music: Lấy toàn bộ danh sách
-      if (data.moodMusicPaths && data.moodMusicPaths.length > 0) {
+      setChapterTitle(data.title || "Chương mới");
+
+      // Nhạc nền
+      if (data.moodMusicPaths && Array.isArray(data.moodMusicPaths)) {
         setMusicPaths(data.moodMusicPaths);
         setCurrentMoodName(data.mood?.name || "");
       } else {
@@ -121,24 +139,35 @@ export function ReaderScreen() {
         setCurrentMoodName("");
       }
 
-      // Load Content
+      // Nội dung Text
       let rawPath = data.contentUrl || (data as any).contentPath;
-      let content = "<p>Đang cập nhật...</p>";
+      let content = "<p>Nội dung đang được cập nhật...</p>";
+      
       if (rawPath) {
         let fullUrl = rawPath.startsWith('http') ? rawPath : `${R2_BASE_URL}/${rawPath}`;
-        const textRes = await fetch(fullUrl);
-        content = await textRes.text();
+        try {
+            const textRes = await fetch(fullUrl);
+            if(textRes.ok) {
+                content = await textRes.text();
+            }
+        } catch(err) {
+            console.error(err);
+        }
       }
       setChapterContent(content);
       setOriginalContent(content);
 
-      // Load Voices
-      const voiceRes = await chapterService.getChapterVoicesStatus(targetId);
-      setVoicesList(voiceRes.data);
+      // Lấy danh sách giọng đọc
+      chapterService.getChapterVoicesStatus(targetId)
+        .then(res => setVoicesList(res.data))
+        .catch(e => console.log("Voice fetch error:", e));
 
     } catch (error: any) {
-      if (error.response?.status === 403) Alert.alert("Chương VIP", "Vui lòng mở khóa để đọc.");
-      else Alert.alert("Lỗi", "Không tải được chương.");
+      if (error.response?.status === 403) {
+          Alert.alert("Chương VIP", "Vui lòng mở khóa để đọc.");
+      } else {
+          Alert.alert("Lỗi", "Không tải được thông tin chương.");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -146,7 +175,7 @@ export function ReaderScreen() {
 
   useEffect(() => { if (chapterId) loadChapter(chapterId); }, [chapterId]);
 
-  // --- TRANSLATE LOGIC ---
+  // --- DỊCH THUẬT ---
   const handleTranslate = async (targetLang: string) => {
     setIsTranslateVisible(false);
     if (targetLang === 'original') {
@@ -193,7 +222,7 @@ export function ReaderScreen() {
     }
   };
 
-  // --- MOOD MUSIC LOGIC (CHỌN BÀI) ---
+  // --- NHẠC NỀN ---
   const playTrack = async (index: number) => {
     const isPremium = await storyService.checkPremiumStatus();
     if (!isPremium) {
@@ -202,7 +231,6 @@ export function ReaderScreen() {
     }
 
     try {
-      // Nếu đang phát đúng bài này -> Tắt
       if (currentMusicIndex === index && bgMusicSound) {
         await bgMusicSound.stopAsync();
         await bgMusicSound.unloadAsync();
@@ -210,13 +238,9 @@ export function ReaderScreen() {
         setCurrentMusicIndex(null);
         return;
       }
-
-      // Nếu đang phát bài khác -> Stop bài cũ
       if (bgMusicSound) {
         await bgMusicSound.unloadAsync();
       }
-
-      // Phát bài mới
       const rawPath = musicPaths[index];
       const fullUrl = rawPath.startsWith('http') ? rawPath : `${R2_BASE_URL}/${rawPath}`;
       
@@ -226,21 +250,73 @@ export function ReaderScreen() {
       );
       setBgMusicSound(newSound);
       setCurrentMusicIndex(index);
-
     } catch (error) {
       Alert.alert("Lỗi", "Không thể phát nhạc nền.");
     }
   };
 
-  // --- VOICE LOGIC (ĐÃ CẬP NHẬT) ---
+  // --- VOICE LOGIC (ĐÃ FIX LỖI ĐÈ ÂM THANH) ---
+  const playVoice = async (url: string) => {
+    try {
+      // 1. Nếu đang có sound, dừng và hủy nó trước
+      if (sound) {
+        await sound.stopAsync();
+        await sound.unloadAsync();
+        setSound(null);
+        setIsPlayingVoice(false);
+      }
+
+      const fullUrl = url.startsWith('http') ? url : `${R2_BASE_URL}/${url}`;
+      
+      // 2. Tạo sound mới
+      const { sound: newSound } = await Audio.Sound.createAsync(
+        { uri: fullUrl },
+        { shouldPlay: true }
+      );
+      
+      setSound(newSound);
+      setIsPlayingVoice(true);
+      
+      // 3. Tự động tắt trạng thái play khi chạy hết bài
+      newSound.setOnPlaybackStatusUpdate(async (status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          setIsPlayingVoice(false);
+          await newSound.setPositionAsync(0); // Reset về đầu
+        }
+      });
+    } catch (err) {
+      console.error("Lỗi phát voice:", err);
+      Alert.alert("Lỗi", "Không thể phát giọng đọc này.");
+    }
+  };
+
+  const toggleVoice = async () => {
+     if (!sound) return;
+     
+     if (isPlayingVoice) {
+       await sound.pauseAsync();
+       setIsPlayingVoice(false);
+     } else {
+       await sound.playAsync();
+       setIsPlayingVoice(true);
+     }
+  };
+
   const handleSelectVoice = async (voice: ChapterVoiceStatus) => {
-    // 1. Nếu đã sở hữu -> Phát luôn
+    // Nếu chọn lại giọng đang phát -> Chỉ Play/Pause
+    if (currentVoice?.voiceId === voice.voiceId && sound) {
+        toggleVoice();
+        // Mở mini player nếu nó đang ẩn
+        if (!isPlayerVisible) setIsPlayerVisible(true);
+        return;
+    }
+
     if (voice.owned) {
       setCurrentVoice(voice);
       setIsPlayerVisible(true);
+      // Gọi hàm play mới
       playVoice(voice.audioUrl!);
     } else {
-      // 2. Nếu chưa sở hữu -> Hỏi mua
       Alert.alert(
         "Mua giọng đọc", 
         `Bạn muốn mua giọng đọc "${voice.voiceName}" với giá ${voice.priceDias} dias?`, 
@@ -250,13 +326,10 @@ export function ReaderScreen() {
             text: "Mua ngay", 
             onPress: async () => { 
                try {
-                  // Gọi API mua
                   await chapterService.buyVoiceForChapter(chapterId, [voice.voiceId]);
                   Alert.alert("Thành công", "Đã mua giọng đọc. Vui lòng chọn lại để nghe.");
-                  // Load lại chương để cập nhật trạng thái owned = true
                   loadChapter(chapterId);
                } catch (err) {
-                  console.error(err);
                   Alert.alert("Thất bại", "Mua giọng đọc thất bại. Vui lòng kiểm tra số dư.");
                }
             }
@@ -264,23 +337,6 @@ export function ReaderScreen() {
         ]
       );
     }
-  };
-
-  const playVoice = async (url: string) => {
-    try {
-      const fullUrl = url.startsWith('http') ? url : `${R2_BASE_URL}/${url}`;
-      const { sound: newSound } = await Audio.Sound.createAsync({ uri: fullUrl }, { shouldPlay: true });
-      setSound(newSound);
-      setIsPlayingVoice(true);
-      newSound.setOnPlaybackStatusUpdate(s => { if (s.isLoaded && s.didJustFinish) setIsPlayingVoice(false); });
-    } catch (err) { console.error(err); }
-  };
-
-  const toggleVoice = async () => {
-     if (!sound) return;
-     if (isPlayingVoice) await sound.pauseAsync();
-     else await sound.playAsync();
-     setIsPlayingVoice(!isPlayingVoice);
   };
 
   const handleNavigate = (direction: 'prev' | 'next') => {
@@ -299,36 +355,40 @@ export function ReaderScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: currentTheme.bg }]} edges={['top', 'left', 'right']}>
       <StatusBar hidden={!controlsVisible} barStyle={themeId === 'dark' ? 'light-content' : 'dark-content'} />
 
-      {/* Header */}
+      {/* HEADER */}
       <View style={[styles.header, { opacity: controlsVisible ? 1 : 0, height: controlsVisible ? 'auto' : 0 }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconBtn}>
           <ArrowLeft size={24} color={currentTheme.text} />
         </TouchableOpacity>
-        
         {controlsVisible && currentMoodName ? (
            <View style={{backgroundColor: 'rgba(0,0,0,0.1)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12}}>
               <Text style={{color: currentTheme.text, fontSize: 12}}>Mood: {currentMoodName}</Text>
            </View>
         ) : null}
-
         <TouchableOpacity onPress={() => setIsReportVisible(true)} style={styles.iconBtn}>
           <Flag size={20} color={currentTheme.text} />
         </TouchableOpacity>
       </View>
 
-      {/* Mini Player */}
+      {/* MINI PLAYER */}
       {isPlayerVisible && (
         <View style={{ paddingHorizontal: 16, paddingBottom: 10, paddingTop: 5, zIndex: 50 }}>
           <MiniPlayer 
             visible={true} isPlaying={isPlayingVoice} 
             voiceName={currentVoice?.voiceName || 'Voice'}
             onPlayPause={toggleVoice}
-            onClose={() => { if (sound) sound.stopAsync(); setIsPlayerVisible(false); }}
+            onClose={() => { 
+                if (sound) {
+                    sound.stopAsync();
+                    setIsPlayingVoice(false);
+                }
+                setIsPlayerVisible(false); 
+            }}
           />
         </View>
       )}
 
-      {/* Content */}
+      {/* CONTENT */}
       <View style={{ flex: 1 }}>
         {isLoading || isTranslating ? (
           <View style={styles.center}>
@@ -345,7 +405,9 @@ export function ReaderScreen() {
               <RenderHtml
                 contentWidth={width - 40}
                 source={{ html: chapterContent }}
+                baseStyle={baseStyle} 
                 tagsStyles={tagsStyles}
+                systemFonts={systemFonts} 
                 enableExperimentalMarginCollapsing={true}
               />
               <View style={{ height: 100 }} />
@@ -354,7 +416,7 @@ export function ReaderScreen() {
         )}
       </View>
 
-      {/* Footer */}
+      {/* FOOTER */}
       {controlsVisible && (
         <View style={[styles.footerAbsolute, { backgroundColor: currentTheme.bg, borderTopColor: colors.border }]}>
           <TouchableOpacity onPress={() => handleNavigate('prev')} style={styles.navBtn}>
@@ -369,7 +431,6 @@ export function ReaderScreen() {
             </Text>
           </TouchableOpacity>
 
-          {/* Menu Button mở Sheet */}
           <TouchableOpacity onPress={() => setIsMenuVisible(true)} style={styles.centerBtn}>
             <Menu size={24} color={currentTheme.text} />
             <Text style={{ fontSize: 10, color: currentTheme.text, marginTop: 2 }}>Menu</Text>
@@ -382,7 +443,7 @@ export function ReaderScreen() {
         </View>
       )}
 
-      {/* --- MENU MODAL (ĐÃ CẬP NHẬT UI LIST) --- */}
+      {/* --- MENU MODAL --- */}
       <Modal visible={isMenuVisible} transparent animationType="slide">
         <TouchableWithoutFeedback onPress={() => setIsMenuVisible(false)}>
            <View style={styles.modalOverlay}>
@@ -395,7 +456,7 @@ export function ReaderScreen() {
                         </TouchableOpacity>
                     </View>
 
-                    {/* SECTION: NHẠC NỀN (LIST ITEM) */}
+                    {/* SECTION: NHẠC NỀN */}
                     <View style={styles.menuSection}>
                         <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 10}}>
                            <Music size={18} color={colors.primary} />
@@ -413,37 +474,22 @@ export function ReaderScreen() {
                                     key={index}
                                     onPress={() => playTrack(index)}
                                     style={{
-                                      flexDirection: 'row',
-                                      alignItems: 'center',
-                                      paddingVertical: 10,
-                                      paddingHorizontal: 12,
-                                      borderRadius: 8,
-                                      marginBottom: 6,
-                                      backgroundColor: isPlayingThis ? colors.primary + '15' : 'transparent', // Nền nhẹ khi active
+                                      flexDirection: 'row', alignItems: 'center',
+                                      paddingVertical: 10, paddingHorizontal: 12,
+                                      borderRadius: 8, marginBottom: 6,
+                                      backgroundColor: isPlayingThis ? colors.primary + '15' : 'transparent',
                                       borderWidth: 1,
                                       borderColor: isPlayingThis ? colors.primary : 'rgba(150,150,150,0.2)'
                                     }}
                                   >
-                                    {/* Icon Play/Pause */}
                                     {isPlayingThis ? (
                                       <Pause size={18} color={colors.primary} fill={colors.primary} />
                                     ) : (
                                       <Play size={18} color={currentTheme.text} />
                                     )}
-
-                                    {/* Tên bài hát */}
-                                    <Text
-                                      style={{
-                                        marginLeft: 12,
-                                        fontSize: 14,
-                                        color: isPlayingThis ? colors.primary : currentTheme.text,
-                                        fontWeight: isPlayingThis ? '600' : '400'
-                                      }}
-                                    >
+                                    <Text style={{ marginLeft: 12, fontSize: 14, color: isPlayingThis ? colors.primary : currentTheme.text, fontWeight: isPlayingThis ? '600' : '400' }}>
                                       Bài {index + 1}
                                     </Text>
-
-                                    {/* Status (Optional) */}
                                     {isPlayingThis && (
                                       <View style={{marginLeft: 'auto'}}>
                                          <Text style={{fontSize: 10, color: colors.primary, fontWeight: 'bold'}}>ĐANG PHÁT</Text>
@@ -531,20 +577,14 @@ const styles = StyleSheet.create({
   iconBtn: { padding: 8 },
   scrollContent: { paddingHorizontal: 20, paddingBottom: 20 },
   chapterTitle: { fontSize: 22, fontWeight: 'bold', textAlign: 'center', marginTop: 10, marginBottom: 20 },
-  
-  // Footer
   footerAbsolute: { position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 20, borderTopWidth: 1, elevation: 10, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 5 },
   navBtn: { alignItems: 'center', padding: 8 },
   centerBtn: { alignItems: 'center', padding: 8, minWidth: 60 },
-
-  // Modal Common
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, minHeight: 300 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   modalTitle: { fontSize: 18, fontWeight: 'bold' },
   langItem: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 15, borderBottomWidth: 0.5, borderBottomColor: '#ccc' },
-
-  // Menu Modal Spec
   menuContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 },
   menuHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
   menuTitle: { fontSize: 18, fontWeight: 'bold' },

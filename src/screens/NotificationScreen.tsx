@@ -5,12 +5,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { ArrowLeft, Bell, CheckCheck, Clock, MailOpen } from 'lucide-react-native';
+import { ArrowLeft, Bell, CheckCheck, MailOpen } from 'lucide-react-native';
 
 import { useTheme } from '../contexts/ThemeProvider';
+import { useAuth } from '../contexts/AuthContext'; // Import để lấy User ID cho thông báo ảo
 import { notificationService, NotificationItem } from '../api/notificationService';
-import { subscriptionService } from '../api/storyService'; // Import Subscription Service
 
+
+// Hàm format thời gian
 const formatTime = (dateString: string) => {
   const date = new Date(dateString);
   const now = new Date();
@@ -25,17 +27,47 @@ const formatTime = (dateString: string) => {
 export function NotificationScreen() {
   const { colors, typography, theme } = useTheme();
   const navigation = useNavigation();
+  const { user } = useAuth(); // Lấy user hiện tại
 
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // Hàm lấy dữ liệu (Thông báo thực + Kiểm tra quà hàng ngày)
   const fetchNotifications = async () => {
     try {
-      const res = await notificationService.getNotifications(1, 50);
-      if (res.data && Array.isArray(res.data.items)) {
-        setNotifications(res.data.items);
+      // Gọi song song: Lấy thông báo từ Server VÀ Kiểm tra trạng thái gói cước
+      const [notifRes, subRes] = await Promise.all([
+        notificationService.getNotifications(1, 50),
+        // Thêm catch để nếu API status lỗi thì không chặn việc hiện thông báo thường
+       notificationService.getSubscriptionStatus().catch(() => ({ data: null })) 
+      ]);
+
+      let items: NotificationItem[] = [];
+      if (notifRes.data && Array.isArray(notifRes.data.items)) {
+        items = notifRes.data.items;
       }
+
+      // --- LOGIC TẠO THÔNG BÁO ẢO ---
+      // Nếu user có gói Active VÀ được phép nhận hôm nay -> Chèn thông báo nhắc nhở lên đầu
+      const subData = subRes.data;
+   if (subData && subData.hasActiveSubscription && subData.canClaimToday) {
+        const virtualNotif: NotificationItem = {
+          notificationId: 'local_daily_claim', // ID giả định đặc biệt
+          recipientId: user?.id || 'me',
+          type: 'subscription_reminder', // Type để xử lý click
+          title: '🎁 Nhận Kim Cương Hàng Ngày',
+          message: `Bạn có ${subData.dailyDias} Dias chưa nhận hôm nay. Bấm vào đây để nhận ngay!`,
+          isRead: false, // Luôn hiển thị chưa đọc để gây chú ý
+          createdAt: new Date().toISOString(),
+        };
+        // Chèn vào đầu danh sách
+        items = [virtualNotif, ...items];
+      }
+      // -------------------------------
+
+      setNotifications(items);
+
     } catch (error) {
       console.error("Lỗi lấy thông báo:", error);
     } finally {
@@ -54,9 +86,13 @@ export function NotificationScreen() {
   };
 
   const handleReadAll = async () => {
-    if (notifications.every(n => n.isRead)) return;
+    // Chỉ đánh dấu các thông báo thật (có ID khác 'local_daily_claim')
+    const realNotifications = notifications.filter(n => n.notificationId !== 'local_daily_claim');
+    
+    if (realNotifications.every(n => n.isRead)) return;
 
     const oldState = [...notifications];
+    // Cập nhật UI ngay lập tức
     setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
 
     try {
@@ -69,32 +105,50 @@ export function NotificationScreen() {
   };
 
   const handlePressNotification = async (item: NotificationItem) => {
-    // Đánh dấu đã đọc
+    // 1. Đánh dấu đã đọc (Về mặt hiển thị UI)
     if (!item.isRead) {
       setNotifications(prev => 
         prev.map(n => n.notificationId === item.notificationId ? { ...n, isRead: true } : n)
       );
-      notificationService.markAsRead(item.notificationId).catch(err => console.log(err));
+      
+     
+      if (item.notificationId !== 'local_daily_claim') {
+         notificationService.markAsRead(item.notificationId).catch(err => console.log(err));
+      }
     }
 
-    // --- XỬ LÝ NHẬN DIAS ---
+    // 2. --- XỬ LÝ NHẬN DIAS ---
     if (item.type === 'subscription_reminder') {
         try {
-            await subscriptionService.claimDaily();
+            await notificationService.claimDailyReward();
             Alert.alert("Thành công", "Bạn đã nhận được kim cương hàng ngày!");
-        } catch (error) {
+            
+            // Sau khi nhận thành công, XÓA thông báo ảo khỏi danh sách để không hiện nữa
+            setNotifications(prev => prev.filter(n => n.notificationId !== 'local_daily_claim'));
+            
+        } catch (error: any) {
             console.error(error);
-            Alert.alert("Thông báo", "Bạn đã nhận quà hôm nay rồi hoặc gói cước đã hết hạn.");
+            const message = error?.response?.data?.message || "Có lỗi xảy ra hoặc bạn đã nhận rồi.";
+            Alert.alert("Thông báo", message);
         }
     } else {
-        // Xử lý các loại thông báo khác (ví dụ mở truyện)
-        Alert.alert("Thông báo", item.message);
+        // Xử lý các loại thông báo khác
+        // Ví dụ: Điều hướng đến trang truyện...
+        if (item.message) {
+            Alert.alert("Nội dung", item.message);
+        }
     }
   };
 
   const renderItem = ({ item }: { item: NotificationItem }) => {
     const isRead = item.isRead;
-    const backgroundColor = isRead ? colors.card : (theme === 'light' ? '#E3F2FD' : '#1A2A3A');
+    // Highlight màu khác cho thông báo nhắc nhận quà
+    const isSpecial = item.notificationId === 'local_daily_claim';
+    
+    // Nếu là thông báo đặc biệt chưa đọc, dùng màu nền nổi bật hơn chút (hoặc giữ như cũ)
+    const backgroundColor = isRead 
+        ? colors.card 
+        : (isSpecial ? (theme === 'light' ? '#E8F5E9' : '#1B2E21') : (theme === 'light' ? '#E3F2FD' : '#1A2A3A'));
 
     return (
       <TouchableOpacity 
@@ -102,7 +156,10 @@ export function NotificationScreen() {
         onPress={() => handlePressNotification(item)}
         activeOpacity={0.7}
       >
-        <View style={[styles.iconBox, { backgroundColor: isRead ? colors.muted : colors.primary }]}>
+        <View style={[
+            styles.iconBox, 
+            { backgroundColor: isRead ? colors.muted : (isSpecial ? '#4CAF50' : colors.primary) }
+        ]}>
            {isRead ? <MailOpen size={20} color="#FFF" /> : <Bell size={20} color="#FFF" />}
         </View>
 
@@ -130,7 +187,7 @@ export function NotificationScreen() {
           </Text>
         </View>
 
-        {!isRead && <View style={styles.unreadDot} />}
+        {!isRead && <View style={[styles.unreadDot, isSpecial && { backgroundColor: '#4CAF50' }]} />}
       </TouchableOpacity>
     );
   };

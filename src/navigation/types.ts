@@ -16,20 +16,21 @@ export type AuthStackParamList = {
 export type MainBottomTabParamList = {
   Home: undefined;
   Library: undefined;
+  History: undefined;
   Audio: undefined;
   Profile: undefined;
 };
 
 // 3. Luồng Chính (Main Stack)
 export type MainStackParamList = {
-  MainTabs: { screen?: keyof MainBottomTabParamList };
-  Reader: { storyId: string; chapterId: string }; // Cập nhật Reader nhận ID
+  MainTabs: { screen?: keyof MainBottomTabParamList }; 
+  Reader: { storyId: string; chapterId: string };
   Settings: undefined;
   TopUp: undefined;
   EditProfile: undefined;
   StoryDetail: { storyId: string }; 
-Search: undefined;
-Notification: undefined;
+  Search: undefined;
+  Notification: undefined;
   AuthorProfile: { authorId: string };
 };
 

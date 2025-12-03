@@ -1,5 +1,7 @@
 import apiClient from "./apiClient";
 
+// --- INTERFACES ---
+
 export interface Tag {
   tagId: string;
   tagName: string;
@@ -75,11 +77,13 @@ export interface StoryRating {
   totalRatings: number;
   viewerRating?: number;
 }
+
 export interface TopWeeklyItem {
   story: Story;
   weeklyViewCount: number;
   weekStartUtc: string;
 }
+
 export interface SystemVoice {
   voiceId: string;
   voiceName: string;
@@ -136,8 +140,33 @@ export interface TranslationResponse {
   cached: boolean;
 }
 
-// SERVICE
+// Interface cho trạng thái gói cước (Premium)
+export interface SubscriptionStatus {
+  hasActiveSubscription: boolean;
+  planCode: string | null;
+  planName: string | null;
+  startAt: string | null;
+  endAt: string | null;
+  dailyDias: number;
+  priceVnd: number;
+  lastClaimedAt: string | null;
+  canClaimToday: boolean;
+}
+
+// --- STORY SERVICE ---
 export const storyService = {
+  // 1. [QUAN TRỌNG] Kiểm tra User có phải Premium không?
+  checkPremiumStatus: async () => {
+    try {
+      const res = await apiClient.get<SubscriptionStatus>('/api/Subscription/status');
+      // Trả về true nếu hasActiveSubscription = true
+      return res.data && res.data.hasActiveSubscription;
+    } catch (error) {
+      console.error("Lỗi kiểm tra Premium:", error);
+      return false; 
+    }
+  },
+
   getStoryDetail: (storyId: string) => {
     return apiClient.get<StoryDetail>(`/api/StoryCatalog/${storyId}`);
   },
@@ -227,80 +256,57 @@ export const storyService = {
     return apiClient.delete(`/api/FavoriteStory/${storyId}`);
   },
 
-  // Bật/Tắt thông báo cho 1 truyện yêu thích cụ thể
   toggleStoryNotification: (storyId: string, enable: boolean) => {
-    // API document ghi là PUT body object, nhưng curl ví dụ không thấy body rõ ràng
     return apiClient.put(`/api/FavoriteStory/${storyId}/notifications`, {
       enabled: enable,
     });
   },
-  // TRANSLATION API
 
-  // 1. Kiểm tra trạng thái dịch (Sửa kiểu trả về)
+  // TRANSLATION API
   getTranslationStatus: (chapterId: string) => {
     return apiClient.get<ChapterTranslationStatusResponse>(
       `/api/ChapterTranslation/${chapterId}`
     );
   },
 
-  // 2. Trigger dịch
   triggerTranslate: (chapterId: string, targetLanguageCode: string) => {
     return apiClient.post(`/api/ChapterTranslation/${chapterId}`, {
       targetLanguageCode,
     });
   },
 
-  // 3. Lấy nội dung
   getTranslatedContent: (chapterId: string, languageCode: string) => {
-    return apiClient.get<TranslationResponse>(
-      `/api/ChapterTranslation/${chapterId}`,
-      {
-        params: { languageCode },
-      }
-    );
-  },
-
-  checkPremiumStatus: async () => {
-    try {
-      return false; // Test mode
-    } catch (error) {
-      console.error("Lỗi check premium:", error);
-      return false;
-    }
-  },
+    return apiClient.get<TranslationResponse>(`/api/ChapterTranslation/${chapterId}/content`, {
+        params: { languageCode }
+    });
+  }
 };
 
+// --- CHAPTER SERVICE (Dành cho ReaderScreen) ---
+// Tôi thêm phần này để fix lỗi "Cannot find name 'chapterService'"
 export const chapterService = {
-  getSystemVoices: () => {
-    return apiClient.get<SystemVoice[]>("/api/VoiceChapter/voice-list");
-  },
-  getChapterVoicesStatus: (chapterId: string) => {
-    return apiClient.get<ChapterVoiceStatus[]>(
-      `/api/ChapterCatalog/${chapterId}/voices`
-    );
-  },
-  buyChapter: (chapterId: string) => {
-    return apiClient.post(`/api/ChapterPurchase/${chapterId}`);
-  },
-  buyVoiceForChapter: (chapterId: string, voiceIds: string[]) => {
-    const payload = { voiceIds: voiceIds };
-    return apiClient.post(
-      `/api/ChapterPurchase/${chapterId}/order-voice`,
-      payload
-    );
-  },
+  // Lấy chi tiết chương
   getChapterDetail: (chapterId: string) => {
     return apiClient.get(`/api/ChapterCatalog/${chapterId}`);
   },
-};
-export const subscriptionService = {
-  // 1. Lấy trạng thái gói cước (để check có được claim ko)
-  getStatus: () => {
-    return apiClient.get('/api/Subscription/status');
+
+  // Lấy trạng thái giọng đọc (Giả định URL, bạn kiểm tra lại với Swagger nếu lỗi 404)
+  getChapterVoicesStatus: (chapterId: string) => {
+    return apiClient.get<ChapterVoiceStatus[]>(`/api/ChapterVoice/${chapterId}/status`);
   },
-  
-  // 2. Nhận kim cương hàng ngày (API bạn cần cho Notification)
-  claimDaily: () => {
-    return apiClient.post('/api/Subscription/claim-daily');
+
+  // Mua giọng đọc cho chương
+  buyVoiceForChapter: (chapterId: string, voiceIds: string[]) => {
+    return apiClient.post(`/api/ChapterVoice/buy`, { chapterId, voiceIds });
   }
+};
+
+// --- SUBSCRIPTION SERVICE ---
+export const subscriptionService = {
+    getStatus: () => {
+        return apiClient.get<SubscriptionStatus>('/api/Subscription/status');
+    },
+    claimDaily: () => {
+        return apiClient.post('/api/Subscription/claim-daily');
+    }
 };

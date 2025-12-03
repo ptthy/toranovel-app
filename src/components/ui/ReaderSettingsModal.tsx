@@ -4,8 +4,7 @@ import { X, Type, Palette, Volume2, Check } from 'lucide-react-native';
 import { useTheme } from '../../contexts/ThemeProvider';
 import { ChapterVoiceStatus } from '../../api/storyService';
 
-
-// Định nghĩa lại type cho Theme và Font
+// Định nghĩa lại type cho Theme
 export const READER_THEMES = {
   light: { id: 'light', bg: '#FFFFFF', text: '#000000', name: 'Sáng' },
   sepia: { id: 'sepia', bg: '#F4ECD8', text: '#5D4037', name: 'Vàng' },
@@ -13,9 +12,12 @@ export const READER_THEMES = {
   black: { id: 'black', bg: '#000000', text: '#CCCCCC', name: 'Đen' },
 };
 
+// Cập nhật Font: Thêm Times New Roman và Poppins
 export const READER_FONTS = {
-  serif:      { id: 'serif',      family: 'System', name: 'Serif' },
-  sans:       { id: 'sans',       family: 'Roboto', name: 'Sans' },
+  times:      { id: 'times',      family: 'Times New Roman', name: 'Times New Roman' },
+  serif:      { id: 'serif',      family: 'serif', name: 'Serif (Có chân)' },
+  sans:       { id: 'sans',       family: 'sans-serif', name: 'Sans (Không chân)' },
+  poppins:    { id: 'poppins',    family: 'Poppins', name: 'Poppins' }, 
   monospace:  { id: 'monospace',  family: 'monospace', name: 'Mono' },
 };
 
@@ -30,9 +32,9 @@ interface ReaderSettingsModalProps {
   setFontId: (id: string) => void;
   
   // --- THÊM PHẦN VOICE ---
-  availableVoices: ChapterVoiceStatus[]; // Danh sách voice của chương
+  availableVoices: ChapterVoiceStatus[]; 
   currentVoiceId: string | null;
-  onSelectVoice: (voice: ChapterVoiceStatus) => void; // Hàm xử lý chọn/mua voice
+  onSelectVoice: (voice: ChapterVoiceStatus) => void;
 }
 
 export function ReaderSettingsModal({
@@ -42,7 +44,7 @@ export function ReaderSettingsModal({
   fontId, setFontId,
   availableVoices, currentVoiceId, onSelectVoice
 }: ReaderSettingsModalProps) {
-  const { colors, typography } = useTheme();
+  const { colors } = useTheme();
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -93,7 +95,32 @@ export function ReaderSettingsModal({
               </View>
             </View>
 
-            {/* --- PHẦN 3: GIỌNG ĐỌC (MỚI) --- */}
+            {/* --- PHẦN 3: FONT CHỮ (Đã thêm Times & Poppins) --- */}
+            <View style={styles.section}>
+              <View style={styles.headerRow}>
+                <Type size={18} color={colors.foreground} />
+                <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Phông chữ</Text>
+              </View>
+              <View style={styles.fontRow}>
+                {Object.values(READER_FONTS).map((f) => (
+                  <TouchableOpacity
+                    key={f.id}
+                    style={[
+                      styles.fontOption,
+                      { 
+                        backgroundColor: fontId === f.id ? colors.primary + '20' : 'transparent', 
+                        borderColor: fontId === f.id ? colors.primary : colors.border 
+                      }
+                    ]}
+                    onPress={() => setFontId(f.id)}
+                  >
+                    <Text style={{ fontFamily: f.family, color: colors.foreground, fontSize: 12 }}>{f.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* --- PHẦN 4: GIỌNG ĐỌC AI --- */}
             <View style={styles.section}>
               <View style={styles.headerRow}>
                 <Volume2 size={18} color={colors.foreground} />
@@ -123,7 +150,7 @@ export function ReaderSettingsModal({
                         onPress={() => onSelectVoice(voice)}
                       >
                         <View style={{flex: 1}}>
-                          <Text style={[typography.p, { color: colors.foreground, fontWeight: isSelected ? 'bold' : 'normal' }]}>
+                          <Text style={{ color: colors.foreground, fontWeight: isSelected ? 'bold' : 'normal' }}>
                             {voice.voiceName}
                           </Text>
                           {!isOwned && voice.hasAudio && (
@@ -147,7 +174,7 @@ export function ReaderSettingsModal({
 
 const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'transparent', justifyContent: 'flex-end' },
-  container: { borderTopLeftRadius: 24, borderTopRightRadius: 24, elevation: 10, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 10, maxHeight: '70%' },
+  container: { borderTopLeftRadius: 24, borderTopRightRadius: 24, elevation: 10, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 10, maxHeight: '80%' },
   dragIndicator: { width: 40, height: 4, backgroundColor: '#ccc', borderRadius: 2, alignSelf: 'center', marginTop: 10, marginBottom: 5 },
   section: { marginBottom: 24 },
   headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 8 },
@@ -160,6 +187,10 @@ const styles = StyleSheet.create({
   // Theme Control
   themeRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
   themeOption: { flex: 1, height: 50, borderRadius: 25, borderWidth: 2, justifyContent: 'center', alignItems: 'center' },
+
+  // Font Family Control
+  fontRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  fontOption: { paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderRadius: 20 },
 
   // Voice Control
   voiceList: { gap: 8 },
