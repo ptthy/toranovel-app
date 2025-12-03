@@ -12,123 +12,122 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "../contexts/ThemeProvider";
-import {
-  ArrowLeft,
-  Crown,
-  Zap,
-  Globe,
-  Mic,
-} from "lucide-react-native";
+import { ArrowLeft, Crown, Zap, Globe, Mic } from "lucide-react-native";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
-
 import MaterialIcons from "@react-native-vector-icons/material-icons";
-import { useAuth } from "../contexts/AuthContext"; // Import Auth để cập nhật số dư
-import { paymentService } from "../api/paymentService";
+import { useAuth } from "../contexts/AuthContext";
+// Import service và interface
+import { paymentService, PricingPackage, SubscriptionPlan } from "../api/paymentService";
 
-// --- CẤU HÌNH GÓI NẠP (MAPPING) ---
-// displayPrice: Giá hiển thị lên màn hình (50k, 100k...)
-// apiAmount: Giá trị gửi lên Server Backend (2k, 3k...)
 
-const PREMIUM_PACKAGE = {
-  id: "monthly_100",
-  name: "Hội Viên Tháng",
-  displayPrice: 100000, // Hiển thị 100k
-  apiAmount: 3000,      // Gửi lên 3k (Ví dụ: Map với gói test trung bình)
-  diasInstant: 1000,
-  diasDaily: 50,
-  features: [
-    { icon: Zap, text: "Nhận 50 Dias mỗi ngày" },
-    { icon: Crown, text: "Đổi nhạc nền, hiệu ứng đọc" },
-    { icon: Globe, text: "Dịch truyện 4 ngôn ngữ" },
-    { icon: Mic, text: "Mở khóa 2 giọng đọc AI cao cấp" },
-  ],
-};
-
-const SINGLE_PACKAGES = [
-  { 
-    id: "single_50", 
-    displayPrice: 50000, // UI hiện 50,000đ
-    apiAmount: 2000,     // API nhận 2000đ -> Được 550 Dias
-    dias: 550, 
-    bonus: "10%" 
-  },
-  { 
-    id: "single_100", 
-    displayPrice: 100000, // UI hiện 100,000đ
-    apiAmount: 3000,      // API nhận 3000đ -> Được 1150 Dias
-    dias: 1150, 
-    bonus: "15%" 
-  },
-  { 
-    id: "single_200", 
-    displayPrice: 200000, // UI hiện 200,000đ
-    apiAmount: 4000,      // API nhận 4000đ -> Được 2400 Dias
-    dias: 2400, 
-    bonus: "20%" 
-  },
+const PREMIUM_FEATURES_UI = [
+  { icon: Zap, text: "Nhận Dias mỗi ngày" }, 
+  { icon: Crown, text: "Đổi nhạc nền, hiệu ứng đọc" },
+  { icon: Globe, text: "Dịch truyện 4 ngôn ngữ" },
+  { icon: Mic, text: "Mở khóa 2 giọng đọc AI cao cấp" },
 ];
 
 export function TopUpScreen() {
   const { colors, typography } = useTheme();
   const navigation = useNavigation();
-  const { user, fetchUserProfile } = useAuth(); // Lấy user và hàm refresh
+  const { user, fetchUserProfile } = useAuth();
   
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Tự động cập nhật số dư khi quay lại màn hình này
+  // State lưu dữ liệu từ API
+  const [subscriptionData, setSubscriptionData] = useState<SubscriptionPlan | null>(null);
+  const [singlePackages, setSinglePackages] = useState<PricingPackage[]>([]);
+
+  // 1. Lấy thông tin Gói Tháng
+  const fetchSubscriptionPlan = async () => {
+    try {
+      const response = await paymentService.getSubscriptionPlans();
+      if (response.data && response.data.length > 0) {
+        
+         const premiumPlan = response.data.find(p => p.planCode === 'premium_month') || response.data[0];
+         setSubscriptionData(premiumPlan);
+      }
+    } catch (error) {
+      console.error("Lỗi lấy gói tháng:", error);
+    }
+  };
+
+  // 2. Lấy danh sách Gói Lẻ (Pricing)
+  const fetchPricingPackages = async () => {
+    try {
+      const response = await paymentService.getPricing();
+      if (response.data) {
+        // Lọc gói active và sắp xếp theo giá tăng dần
+        const activePkgs = response.data.filter(p => p.isActive);
+        activePkgs.sort((a, b) => a.amountVnd - b.amountVnd);
+        setSinglePackages(activePkgs);
+      }
+    } catch (error) {
+      console.error("Lỗi lấy gói lẻ:", error);
+    }
+  };
+
+  // Gọi API khi vào màn hình
   useFocusEffect(
     useCallback(() => {
       fetchUserProfile();
+      fetchSubscriptionPlan();
+      fetchPricingPackages();
     }, [])
   );
 
   const onRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    await fetchUserProfile();
+    await Promise.all([
+      fetchUserProfile(), 
+      fetchSubscriptionPlan(), 
+      fetchPricingPackages()
+    ]);
     setIsRefreshing(false);
   }, []);
 
-  // Hàm xử lý thanh toán
-  const handlePayment = async (amountToSend: number) => {
+  // --- XỬ LÝ THANH TOÁN GÓI THÁNG ---
+  const handleSubscription = async () => {
+    if (!subscriptionData) return;
     setIsLoading(true);
     try {
-      // Gọi API tạo link với số tiền test (apiAmount)
-      const response = await paymentService.createPaymentLink(amountToSend);
+      const response = await paymentService.createSubscriptionLink(subscriptionData.planCode);
       const { checkoutUrl } = response.data;
-
-      if (checkoutUrl) {
-        const supported = await Linking.canOpenURL(checkoutUrl);
-        if (supported) {
-          await Linking.openURL(checkoutUrl);
-        } else {
-          Alert.alert("Lỗi", "Không thể mở trình duyệt thanh toán.");
-        }
-      } else {
-        Alert.alert("Lỗi", "Không lấy được link thanh toán.");
-      }
+      if (checkoutUrl) await Linking.openURL(checkoutUrl);
+      else Alert.alert("Lỗi", "Không lấy được link thanh toán.");
     } catch (error) {
       console.error(error);
-      Alert.alert("Lỗi", "Có lỗi xảy ra khi tạo giao dịch.");
+      Alert.alert("Lỗi", "Có lỗi khi tạo gói tháng.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Component hiển thị giá tiền (VND)
-  const formatCurrency = (amount: number) => {
-    return amount.toLocaleString("vi-VN") + "đ";
+  // --- XỬ LÝ THANH TOÁN GÓI LẺ ---
+  const handleOneTimePayment = async (amount: number) => {
+    setIsLoading(true);
+    try {
+      const response = await paymentService.createPaymentLink(amount);
+      const { checkoutUrl } = response.data;
+      if (checkoutUrl) await Linking.openURL(checkoutUrl);
+      else Alert.alert("Lỗi", "Không lấy được link thanh toán.");
+    } catch (error) {
+      console.error(error);
+      Alert.alert("Lỗi", "Có lỗi khi tạo giao dịch.");
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  const formatCurrency = (amount: number) => amount.toLocaleString("vi-VN") + "đ";
 
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
-        >
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.foreground} />
         </TouchableOpacity>
         <View style={{ alignItems: 'center' }}>
@@ -144,118 +143,98 @@ export function TopUpScreen() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />}
       >
-        {/* 1. GÓI HỘI VIÊN (PREMIUM) */}
-        <Text
-          style={[
-            typography.h4,
-            styles.sectionTitle,
-            { color: colors.foreground },
-          ]}
-        >
+        {/* === 1. GÓI THÁNG (Load từ API) === */}
+        <Text style={[typography.h4, styles.sectionTitle, { color: colors.foreground }]}>
           Gói Tháng
         </Text>
 
-        <TouchableOpacity
-          activeOpacity={0.9}
-          // UI hiển thị 100k, nhưng gửi API là 3000 (hoặc giá test khác)
-          onPress={() => handlePayment(PREMIUM_PACKAGE.apiAmount)}
-        >
-          <LinearGradient
-            colors={["#1E5162", "#2C6B7C"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.premiumCard}
-          >
-            <View style={styles.premiumHeader}>
-              <View>
-                <Text style={styles.premiumTitle}>PREMIUM MONTHLY</Text>
-                <Text style={styles.premiumSubtitle}>
-                  Nhận ngay {PREMIUM_PACKAGE.diasInstant} Dias
-                </Text>
-              </View>
-              <View style={styles.priceTag}>
-                {/* Hiển thị giá thật */}
-                <Text style={styles.priceText}>
-                  {formatCurrency(PREMIUM_PACKAGE.displayPrice)}
-                </Text>
-                <Text style={styles.durationText}>/ tháng</Text>
-              </View>
-            </View>
-
-            <View style={styles.divider} />
-
-            <View style={styles.featureList}>
-              {PREMIUM_PACKAGE.features.map((item, index) => (
-                <View key={index} style={styles.featureItem}>
-                  <item.icon size={18} color="#FFD700" />
-                  <Text style={styles.featureText}>{item.text}</Text>
+        {!subscriptionData ? (
+          <ActivityIndicator color={colors.primary} style={{ margin: 20 }} />
+        ) : (
+          <TouchableOpacity activeOpacity={0.9} onPress={handleSubscription}>
+            <LinearGradient
+              colors={["#1E5162", "#2C6B7C"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.premiumCard}
+            >
+              <View style={styles.premiumHeader}>
+                <View>
+                  <Text style={styles.premiumTitle}>{subscriptionData.planName}</Text>
+                  <Text style={styles.premiumSubtitle}>
+                    Nhận tổng {subscriptionData.dailyDias * subscriptionData.durationDays} Dias / {subscriptionData.durationDays} ngày
+                  </Text>
                 </View>
-              ))}
-            </View>
-          </LinearGradient>
-        </TouchableOpacity>
+                <View style={styles.priceTag}>
+                  <Text style={styles.priceText}>
+                    {formatCurrency(subscriptionData.priceVnd)}
+                  </Text>
+                  <Text style={styles.durationText}>/ tháng</Text>
+                </View>
+              </View>
 
-        {/* 2. GÓI MUA LẺ (SINGLE) */}
-        <Text
-          style={[
-            typography.h4,
-            styles.sectionTitle,
-            { color: colors.foreground, marginTop: 32 },
-          ]}
-        >
+              <View style={styles.divider} />
+
+              <View style={styles.featureList}>
+                {PREMIUM_FEATURES_UI.map((item, index) => {
+                  let displayText = item.text;
+                  if (index === 0) displayText = `Nhận ${subscriptionData.dailyDias} Dias mỗi ngày`;
+                  return (
+                    <View key={index} style={styles.featureItem}>
+                      <item.icon size={18} color="#FFD700" />
+                      <Text style={styles.featureText}>{displayText}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            </LinearGradient>
+          </TouchableOpacity>
+        )}
+
+        {/* === 2. GÓI MUA LẺ (Load từ API) === */}
+        <Text style={[typography.h4, styles.sectionTitle, { color: colors.foreground, marginTop: 32 }]}>
           Gói Mua Lẻ
         </Text>
 
         <View style={styles.packageList}>
-          {SINGLE_PACKAGES.map((pkg) => (
-            <TouchableOpacity
-              key={pkg.id}
-              style={[
-                styles.packageItem,
-                { backgroundColor: colors.card, borderColor: colors.border },
-              ]}
-              // Quan trọng: Gửi apiAmount (giá test) khi bấm nút
-              onPress={() => handlePayment(pkg.apiAmount)}
-            >
-              <View style={styles.packageLeft}>
-                <View style={styles.iconBox}>
-                  <MaterialIcons name="diamond" size={24} color="#2980B9" />
-                </View>
-                <View style={{ marginLeft: 12 }}>
-                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+          {singlePackages.length === 0 && !isRefreshing ? (
+             <ActivityIndicator color={colors.primary} style={{ marginTop: 20 }} />
+          ) : (
+            singlePackages.map((pkg) => (
+              <TouchableOpacity
+                key={pkg.pricingId}
+                style={[styles.packageItem, { backgroundColor: colors.card, borderColor: colors.border }]}
+                onPress={() => handleOneTimePayment(pkg.amountVnd)}
+              >
+                <View style={styles.packageLeft}>
+                  <View style={styles.iconBox}>
+                    <MaterialIcons name="diamond" size={24} color="#2980B9" />
+                  </View>
+                  <View style={{ marginLeft: 12 }}>
                     <Text style={[typography.h4, { color: colors.foreground }]}>
-                      {pkg.dias.toLocaleString()} Kim Cương
+                      {pkg.diamondGranted.toLocaleString()} Kim Cương
+                    </Text>
+                    <Text style={{ color: "#27AE60", fontSize: 12, fontWeight: "600" }}>
+                      Mua ngay
                     </Text>
                   </View>
-                  <Text
-                    style={{
-                      color: "#27AE60",
-                      fontSize: 12,
-                      fontWeight: "600",
-                    }}
-                  >
-                    Tặng thêm {pkg.bonus}
+                </View>
+
+                <View style={styles.packageRight}>
+                  <Text style={[typography.button, { color: colors.primary }]}>
+                    {formatCurrency(pkg.amountVnd)}
                   </Text>
                 </View>
-              </View>
-
-              <View style={styles.packageRight}>
-                {/* Hiển thị displayPrice (giá thật) */}
-                <Text style={[typography.button, { color: colors.primary }]}>
-                  {formatCurrency(pkg.displayPrice)}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          ))}
+              </TouchableOpacity>
+            ))
+          )}
         </View>
       </ScrollView>
 
       {isLoading && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color="#FFF" />
-          <Text style={{ color: "#FFF", marginTop: 12 }}>
-            Đang tạo giao dịch...
-          </Text>
+          <Text style={{ color: "#FFF", marginTop: 12 }}>Đang xử lý...</Text>
         </View>
       )}
     </SafeAreaView>
@@ -273,10 +252,7 @@ const styles = StyleSheet.create({
   },
   backButton: { padding: 4 },
   content: { padding: 16, paddingBottom: 40 },
-
   sectionTitle: { marginBottom: 12 },
-
-  // Premium Card Styles
   premiumCard: {
     borderRadius: 16,
     padding: 20,
@@ -326,8 +302,6 @@ const styles = StyleSheet.create({
   featureList: { gap: 10 },
   featureItem: { flexDirection: "row", alignItems: "center", gap: 12 },
   featureText: { color: "#FFF", fontSize: 14, fontWeight: "500" },
-
-  // Single Package List Styles
   packageList: { gap: 12 },
   packageItem: {
     flexDirection: "row",
@@ -354,7 +328,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
   },
-
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.7)",
