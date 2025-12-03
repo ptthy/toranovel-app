@@ -282,8 +282,26 @@ export const storyService = {
   }
 };
 
+// --- CHAPTER SERVICE (Dành cho ReaderScreen) ---
+// Tôi thêm phần này để fix lỗi "Cannot find name 'chapterService'"
+export const chapterService = {
+  // Lấy chi tiết chương
+  getChapterDetail: (chapterId: string) => {
+    return apiClient.get(`/api/ChapterCatalog/${chapterId}`);
+  },
+
+  // Lấy trạng thái giọng đọc (Giả định URL, bạn kiểm tra lại với Swagger nếu lỗi 404)
+  getChapterVoicesStatus: (chapterId: string) => {
+    return apiClient.get<ChapterVoiceStatus[]>(`/api/ChapterVoice/${chapterId}/status`);
+  },
+
+  // Mua giọng đọc cho chương
+  buyVoiceForChapter: (chapterId: string, voiceIds: string[]) => {
+    return apiClient.post(`/api/ChapterVoice/buy`, { chapterId, voiceIds });
+  }
+};
+
 // --- SUBSCRIPTION SERVICE ---
-// Tách ra hoặc gộp chung đều được, nhưng để đây cho tiện import
 export const subscriptionService = {
     getStatus: () => {
         return apiClient.get<SubscriptionStatus>('/api/Subscription/status');
