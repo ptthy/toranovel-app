@@ -17,9 +17,11 @@ import { ReaderSettingsModal, READER_THEMES, READER_FONTS } from '../components/
 import { MiniPlayer } from '../components/ui/MiniPlayer';
 import { chapterService, ChapterVoiceStatus, storyService } from '../api/storyService';
 
+// --- IMPORT COMPONENT MOOD ---
+import { MoodEffectView } from '../features/mood/MoodEffectView'; 
+
 const R2_BASE_URL = "https://pub-15618311c0ec468282718f80c66bcc13.r2.dev";
 
-// Thêm các font tùy chỉnh
 const systemFonts = [...defaultSystemFonts, 'Poppins', 'Times New Roman', 'serif', 'sans-serif', 'monospace'];
 
 const SUPPORTED_LANGUAGES = [
@@ -44,6 +46,10 @@ export function ReaderScreen() {
   const [themeId, setThemeId] = useState('sepia');
   const [fontId, setFontId] = useState('times');
   const [isLoading, setIsLoading] = useState(true);
+
+  // --- PREMIUM & MOOD STATE ---
+  const [isPremiumUser, setIsPremiumUser] = useState(false);
+  const [currentMoodCode, setCurrentMoodCode] = useState(""); 
   
   // --- DATA ---
   const [chapterContent, setChapterContent] = useState("");
@@ -68,6 +74,9 @@ export function ReaderScreen() {
   const [isPlayerVisible, setIsPlayerVisible] = useState(false);
   const [voicesList, setVoicesList] = useState<ChapterVoiceStatus[]>([]);
   const [currentVoice, setCurrentVoice] = useState<ChapterVoiceStatus | null>(null);
+  
+  // --- VOICE SPEED CONTROL ---
+  const [playbackRate, setPlaybackRate] = useState(1.0);
 
   // --- MODALS ---
   const [isMenuVisible, setIsMenuVisible] = useState(false);
@@ -101,6 +110,13 @@ export function ReaderScreen() {
     };
   }, [bgMusicSound, sound]);
 
+  // Check Premium khi mount
+  useEffect(() => {
+    storyService.checkPremiumStatus()
+      .then(status => setIsPremiumUser(status))
+      .catch(() => setIsPremiumUser(false));
+  }, []);
+
   // Load danh sách chương
   useEffect(() => {
     storyService.getChapters(storyId).then(res => {
@@ -130,13 +146,15 @@ export function ReaderScreen() {
 
       setChapterTitle(data.title || "Chương mới");
 
-      // Nhạc nền
+      // Nhạc nền & Mood
       if (data.moodMusicPaths && Array.isArray(data.moodMusicPaths)) {
         setMusicPaths(data.moodMusicPaths);
-        setCurrentMoodName(data.mood?.name || "");
+        setCurrentMoodName(data.mood?.moodName || ""); 
+        setCurrentMoodCode(data.mood?.moodCode || ""); // Lấy mood code từ API
       } else {
         setMusicPaths([]);
         setCurrentMoodName("");
+        setCurrentMoodCode("");
       }
 
       // Nội dung Text
@@ -255,10 +273,22 @@ export function ReaderScreen() {
     }
   };
 
-  // --- VOICE LOGIC (ĐÃ FIX LỖI ĐÈ ÂM THANH) ---
+  // --- LOGIC ĐỔI TỐC ĐỘ VOICE ---
+  const handleChangeSpeed = async () => {
+    const rates = [1.0, 1.25, 1.5, 2.0];
+    const nextIndex = (rates.indexOf(playbackRate) + 1) % rates.length;
+    const newRate = rates[nextIndex];
+    setPlaybackRate(newRate);
+    
+    if (sound) {
+      // shouldCorrectPitch = true để không bị méo tiếng
+      await sound.setRateAsync(newRate, true); 
+    }
+  };
+
+  // --- VOICE LOGIC ---
   const playVoice = async (url: string) => {
     try {
-      // 1. Nếu đang có sound, dừng và hủy nó trước
       if (sound) {
         await sound.stopAsync();
         await sound.unloadAsync();
@@ -268,20 +298,23 @@ export function ReaderScreen() {
 
       const fullUrl = url.startsWith('http') ? url : `${R2_BASE_URL}/${url}`;
       
-      // 2. Tạo sound mới
       const { sound: newSound } = await Audio.Sound.createAsync(
         { uri: fullUrl },
         { shouldPlay: true }
       );
       
+      // Set tốc độ ngay khi khởi tạo nếu khác 1.0
+      if (playbackRate !== 1.0) {
+        await newSound.setRateAsync(playbackRate, true);
+      }
+      
       setSound(newSound);
       setIsPlayingVoice(true);
       
-      // 3. Tự động tắt trạng thái play khi chạy hết bài
       newSound.setOnPlaybackStatusUpdate(async (status) => {
         if (status.isLoaded && status.didJustFinish) {
           setIsPlayingVoice(false);
-          await newSound.setPositionAsync(0); // Reset về đầu
+          await newSound.setPositionAsync(0); 
         }
       });
     } catch (err) {
@@ -292,7 +325,6 @@ export function ReaderScreen() {
 
   const toggleVoice = async () => {
      if (!sound) return;
-     
      if (isPlayingVoice) {
        await sound.pauseAsync();
        setIsPlayingVoice(false);
@@ -303,10 +335,8 @@ export function ReaderScreen() {
   };
 
   const handleSelectVoice = async (voice: ChapterVoiceStatus) => {
-    // Nếu chọn lại giọng đang phát -> Chỉ Play/Pause
     if (currentVoice?.voiceId === voice.voiceId && sound) {
         toggleVoice();
-        // Mở mini player nếu nó đang ẩn
         if (!isPlayerVisible) setIsPlayerVisible(true);
         return;
     }
@@ -314,7 +344,6 @@ export function ReaderScreen() {
     if (voice.owned) {
       setCurrentVoice(voice);
       setIsPlayerVisible(true);
-      // Gọi hàm play mới
       playVoice(voice.audioUrl!);
     } else {
       Alert.alert(
@@ -351,8 +380,15 @@ export function ReaderScreen() {
     }
   };
 
-  return (
-    <SafeAreaView style={[styles.container, { backgroundColor: currentTheme.bg }]} edges={['top', 'left', 'right']}>
+  // --- RENDER NỘI DUNG CHUNG ---
+  const renderReaderContent = (isTransparentBackground: boolean) => (
+    <SafeAreaView 
+        style={[
+            styles.container, 
+            { backgroundColor: isTransparentBackground ? 'transparent' : currentTheme.bg }
+        ]} 
+        edges={['top', 'left', 'right']}
+    >
       <StatusBar hidden={!controlsVisible} barStyle={themeId === 'dark' ? 'light-content' : 'dark-content'} />
 
       {/* HEADER */}
@@ -370,13 +406,15 @@ export function ReaderScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* MINI PLAYER */}
+      {/* MINI PLAYER (Đã thêm props tốc độ) */}
       {isPlayerVisible && (
         <View style={{ paddingHorizontal: 16, paddingBottom: 10, paddingTop: 5, zIndex: 50 }}>
           <MiniPlayer 
             visible={true} isPlaying={isPlayingVoice} 
             voiceName={currentVoice?.voiceName || 'Voice'}
             onPlayPause={toggleVoice}
+            playbackRate={playbackRate}
+            onChangeSpeed={handleChangeSpeed}
             onClose={() => { 
                 if (sound) {
                     sound.stopAsync();
@@ -388,7 +426,7 @@ export function ReaderScreen() {
         </View>
       )}
 
-      {/* CONTENT */}
+      {/* TEXT CONTENT */}
       <View style={{ flex: 1 }}>
         {isLoading || isTranslating ? (
           <View style={styles.center}>
@@ -443,7 +481,7 @@ export function ReaderScreen() {
         </View>
       )}
 
-      {/* --- MENU MODAL --- */}
+      {/* --- MODALS --- */}
       <Modal visible={isMenuVisible} transparent animationType="slide">
         <TouchableWithoutFeedback onPress={() => setIsMenuVisible(false)}>
            <View style={styles.modalOverlay}>
@@ -533,7 +571,6 @@ export function ReaderScreen() {
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* --- LANGUAGE MODAL --- */}
       <Modal visible={isTranslateVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
            <View style={[styles.modalContent, { backgroundColor: currentTheme.bg }]}>
@@ -562,11 +599,25 @@ export function ReaderScreen() {
         </View>
       </Modal>
 
-      {/* Existing Modals */}
       <ReaderSettingsModal visible={isSettingsVisible} onClose={() => setIsSettingsVisible(false)} fontSize={fontSize} setFontSize={setFontSize} themeId={themeId} setThemeId={setThemeId} fontId={fontId} setFontId={setFontId} availableVoices={voicesList} currentVoiceId={currentVoice?.voiceId || null} onSelectVoice={handleSelectVoice} />
       <CommentModal visible={isCommentVisible} onClose={() => setIsCommentVisible(false)} chapterId={chapterId} />
       <ReportModal visible={isReportVisible} onClose={() => setIsReportVisible(false)} targetId={chapterId} targetType="chapter" />
     </SafeAreaView>
+  );
+
+  // --- LOGIC WRAPPER CHÍNH (MOOD EFFECT) ---
+  if (isPremiumUser && currentMoodCode) {
+    return (
+      <MoodEffectView mood={currentMoodCode as any}>
+        {renderReaderContent(true)} 
+      </MoodEffectView>
+    );
+  }
+
+  return (
+    <View style={{flex: 1, backgroundColor: currentTheme.bg}}>
+        {renderReaderContent(false)}
+    </View>
   );
 }
 

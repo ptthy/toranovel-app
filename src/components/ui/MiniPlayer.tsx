@@ -9,9 +9,20 @@ interface MiniPlayerProps {
   voiceName: string;
   onPlayPause: () => void;
   onClose: () => void;
+  // --- THÊM 2 PROPS MỚI ---
+  playbackRate: number; 
+  onChangeSpeed: () => void;
 }
 
-export function MiniPlayer({ visible, isPlaying, voiceName, onPlayPause, onClose }: MiniPlayerProps) {
+export function MiniPlayer({ 
+  visible, 
+  isPlaying, 
+  voiceName, 
+  onPlayPause, 
+  onClose,
+  playbackRate,    // <--- nhận prop
+  onChangeSpeed    // <--- nhận prop
+}: MiniPlayerProps) {
   const { colors } = useTheme();
 
   if (!visible) return null;
@@ -24,6 +35,21 @@ export function MiniPlayer({ visible, isPlaying, voiceName, onPlayPause, onClose
       </View>
 
       <View style={styles.controls}>
+        {/* --- NÚT CHỈNH TỐC ĐỘ --- */}
+        <TouchableOpacity 
+          onPress={onChangeSpeed}
+          style={{ 
+            paddingHorizontal: 8, 
+            paddingVertical: 4, 
+            backgroundColor: 'rgba(0,0,0,0.05)', 
+            borderRadius: 6 
+          }}
+        >
+          <Text style={{ fontSize: 12, fontWeight: 'bold', color: colors.primary }}>
+            {playbackRate}x
+          </Text>
+        </TouchableOpacity>
+
         <TouchableOpacity onPress={onPlayPause} style={[styles.playBtn, { backgroundColor: colors.primary }]}>
           {isPlaying ? <Pause size={20} color="#fff" fill="#fff" /> : <Play size={20} color="#fff" fill="#fff" />}
         </TouchableOpacity>
@@ -38,7 +64,6 @@ export function MiniPlayer({ visible, isPlaying, voiceName, onPlayPause, onClose
 
 const styles = StyleSheet.create({
   container: {
-    
     left: 16, right: 16,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     padding: 12, borderRadius: 12,

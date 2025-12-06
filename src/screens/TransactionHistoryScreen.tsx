@@ -5,13 +5,13 @@ import { useTheme } from '../contexts/ThemeProvider';
 import apiClient from '../api/apiClient';
 import { Volume2, Calendar, BookOpen, LockOpen } from 'lucide-react-native';
 
-// 1. Tạo Interface chung cho cả 2 loại giao dịch
+// 1. Interface hiển thị lên UI
 interface TransactionItem {
-  id: string;              // purchaseId hoặc purchaseVoiceId
-  type: 'voice' | 'chapter'; // Phân loại để render icon
+  id: string;              
+  type: 'voice' | 'chapter'; 
   storyTitle: string;
   chapterTitle: string;
-  itemName: string;        // Tên giọng đọc hoặc "Mở khóa chương"
+  itemName: string;        
   priceDias: number;
   purchasedAt: string;
 }
@@ -22,80 +22,126 @@ export function TransactionHistoryScreen() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchAllHistory();
+    loadGlobalHistory();
   }, []);
 
-  const fetchAllHistory = async () => {
+  // --- API 1: Lấy lịch sử mua CHAPTER ---
+  // GET /api/ChapterPurchase/chapter-history
+  const getChapterHistory = async (): Promise<TransactionItem[]> => {
     try {
-      setLoading(true);
+      const res = await apiClient.get('/api/ChapterPurchase/chapter-history');
+      const data = res.data;
       
-      // 2. Gọi song song cả 2 API
-      const [voiceRes, chapterRes] = await Promise.all([
-        apiClient.get('/api/ChapterPurchase/voice-history'),
-        apiClient.get('/api/ChapterPurchase/chapter-history')
+      if (!Array.isArray(data)) return [];
+
+      return data.map((item: any) => ({
+        id: item.purchaseId,
+        type: 'chapter', // Đánh dấu là giao dịch mua chương
+        storyTitle: item.storyTitle || "Chưa cập nhật tên truyện",
+        // Nếu không có chapterTitle thì dùng chapterNo
+        chapterTitle: item.chapterTitle || `Chương ${item.chapterNo}`, 
+        itemName: "Mở khóa nội dung chương",
+        priceDias: item.priceDias,
+        purchasedAt: item.purchasedAt
+      }));
+    } catch (error) {
+      console.error("Error fetching chapter history:", error);
+      return [];
+    }
+  };
+
+  // --- API 2: Lấy TOÀN BỘ lịch sử mua VOICE ---
+  // GET /api/ChapterPurchase/voice-history
+  const getAllVoiceHistory = async (): Promise<TransactionItem[]> => {
+    try {
+      const res = await apiClient.get('/api/ChapterPurchase/voice-history');
+      const data = res.data;
+      
+      if (!Array.isArray(data)) return [];
+
+      const transactions: TransactionItem[] = [];
+
+      // Cấu trúc: List Story -> List Chapters -> List Voices
+      data.forEach((story: any) => {
+        if (story.chapters) {
+          story.chapters.forEach((chapter: any) => {
+            if (chapter.voices) {
+              chapter.voices.forEach((voice: any) => {
+                transactions.push({
+                  id: voice.purchaseVoiceId,
+                  type: 'voice', // Đánh dấu là giao dịch mua giọng đọc
+                  storyTitle: story.storyTitle || "Chưa cập nhật",
+                  chapterTitle: chapter.chapterTitle || `Chương ${chapter.chapterNo}`,
+                  itemName: `Giọng đọc: ${voice.voiceName}`,
+                  priceDias: voice.priceDias,
+                  purchasedAt: voice.purchasedAt
+                });
+              });
+            }
+          });
+        }
+      });
+      return transactions;
+    } catch (error) {
+      console.error("Error fetching all voice history:", error);
+      return [];
+    }
+  };
+
+  // --- API 3: Lấy lịch sử mua VOICE của 1 CHAPTER CỤ THỂ ---
+  // GET /api/ChapterPurchase/{chapterId}/voice-history
+  // Hàm này hữu ích khi bạn đang ở màn hình đọc truyện và muốn kiểm tra lịch sử của chương đó
+  const getChapterVoiceHistory = async (chapterId: string): Promise<TransactionItem[]> => {
+    try {
+      const res = await apiClient.get(`/api/ChapterPurchase/${chapterId}/voice-history`);
+      const data = res.data;
+
+      if (!Array.isArray(data)) return [];
+
+      return data.map((voice: any) => ({
+        id: voice.purchaseVoiceId,
+        type: 'voice',
+        storyTitle: "Chi tiết chương", // API này không trả về StoryTitle, có thể cần truyền vào từ ngoài
+        chapterTitle: "Hiện tại",      // Tương tự
+        itemName: `Giọng đọc: ${voice.voiceName}`,
+        priceDias: voice.priceDias,
+        purchasedAt: voice.purchasedAt
+      }));
+    } catch (error) {
+      console.error(`Error fetching voice history for chapter ${chapterId}:`, error);
+      return [];
+    }
+  };
+
+  // --- HÀM TỔNG HỢP DỮ LIỆU CHO MÀN HÌNH CHÍNH ---
+  const loadGlobalHistory = async () => {
+    setLoading(true);
+    try {
+      // Gọi song song API 1 và API 2 để lấy tất cả lịch sử
+      const [chapters, voices] = await Promise.all([
+        getChapterHistory(),
+        getAllVoiceHistory()
       ]);
 
-      const voiceData = voiceRes.data;
-      const chapterData = chapterRes.data;
+      // Gộp 2 mảng lại
+      const combined = [...chapters, ...voices];
 
-      let combinedList: TransactionItem[] = [];
+      // Sắp xếp theo ngày giảm dần (mới nhất lên đầu)
+      combined.sort((a, b) => new Date(b.purchasedAt).getTime() - new Date(a.purchasedAt).getTime());
 
-      // --- XỬ LÝ 1: VOICE HISTORY (Cần flatten như cũ) ---
-      if (Array.isArray(voiceData)) {
-        voiceData.forEach((story: any) => {
-          if (story.chapters) {
-            story.chapters.forEach((chapter: any) => {
-              if (chapter.voices) {
-                chapter.voices.forEach((voice: any) => {
-                  combinedList.push({
-                    id: voice.purchaseVoiceId,
-                    type: 'voice',
-                    storyTitle: story.storyTitle,
-                    chapterTitle: chapter.chapterTitle,
-                    itemName: `Voice: ${voice.voiceName}`,
-                    priceDias: voice.priceDias,
-                    purchasedAt: voice.purchasedAt
-                  });
-                });
-              }
-            });
-          }
-        });
-      }
-
-      // --- XỬ LÝ 2: CHAPTER HISTORY (Map trực tiếp) ---
-      // API trả về mảng phẳng các purchaseId
-      if (Array.isArray(chapterData)) {
-        chapterData.forEach((item: any) => {
-          combinedList.push({
-            id: item.purchaseId,
-            type: 'chapter',
-            storyTitle: item.storyTitle || "Truyện chưa cập nhật tên",
-            chapterTitle: item.chapterTitle || `Chương ${item.chapterNo}`,
-            itemName: "Mở khóa nội dung chương",
-            priceDias: item.priceDias,
-            purchasedAt: item.purchasedAt
-          });
-        });
-      }
-
-      // 3. Sắp xếp tất cả theo thời gian giảm dần (Mới nhất lên đầu)
-      combinedList.sort((a, b) => new Date(b.purchasedAt).getTime() - new Date(a.purchasedAt).getTime());
-
-      setHistory(combinedList);
-
+      setHistory(combined);
     } catch (error) {
-      console.error("Lỗi tải lịch sử giao dịch:", error);
+      console.error("Lỗi tải dữ liệu tổng hợp:", error);
     } finally {
       setLoading(false);
     }
   };
 
   const renderItem = ({ item }: { item: TransactionItem }) => {
-    // Tùy chỉnh Icon và Màu sắc dựa trên loại giao dịch
     const isVoice = item.type === 'voice';
     const IconComponent = isVoice ? Volume2 : LockOpen;
-    const itemColor = isVoice ? colors.primary : '#E67E22'; // Voice màu chính, Chapter màu cam (ví dụ)
+    // Voice màu Primary, Chapter màu cam/vàng
+    const itemColor = isVoice ? colors.primary : '#F39C12'; 
 
     return (
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -122,7 +168,7 @@ export function TransactionHistoryScreen() {
 
         {/* Dòng 3: Loại giao dịch & Ngày tháng */}
         <View style={styles.rowBetween}>
-          <View style={[styles.tag, { backgroundColor: isVoice ? 'rgba(0,0,0,0.05)' : '#FFF3E0' }]}>
+          <View style={[styles.tag, { backgroundColor: isVoice ? 'rgba(0,0,0,0.05)' : '#FFF8E1' }]}>
             <IconComponent size={14} color={itemColor} />
             <Text style={{ color: colors.foreground, fontSize: 12, marginLeft: 4, fontWeight: '500' }}>
               {item.itemName}
@@ -152,7 +198,7 @@ export function TransactionHistoryScreen() {
       ) : (
         <FlatList
           data={history}
-          keyExtractor={item => item.id}
+          keyExtractor={(item, index) => item.id + index} // Thêm index để tránh trùng key nếu API lỗi trả về ID trùng
           renderItem={renderItem}
           contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
           ListEmptyComponent={
