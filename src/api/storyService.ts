@@ -155,11 +155,10 @@ export interface SubscriptionStatus {
 
 // --- STORY SERVICE ---
 export const storyService = {
-  // 1. [QUAN TRỌNG] Kiểm tra User có phải Premium không?
+  // 1. Kiểm tra User có phải Premium không
   checkPremiumStatus: async () => {
     try {
       const res = await apiClient.get<SubscriptionStatus>('/api/Subscription/status');
-      // Trả về true nếu hasActiveSubscription = true
       return res.data && res.data.hasActiveSubscription;
     } catch (error) {
       console.error("Lỗi kiểm tra Premium:", error);
@@ -185,8 +184,7 @@ export const storyService = {
     try {
       let fullUrl = contentUrl;
       if (!contentUrl.startsWith("http")) {
-        const R2_BASE_URL =
-          "https://pub-15618311c0ec468282718f80c66bcc13.r2.dev";
+        const R2_BASE_URL = "https://pub-15618311c0ec468282718f80c66bcc13.r2.dev";
         fullUrl = `${R2_BASE_URL}/${contentUrl}`;
       }
       const res = await fetch(fullUrl);
@@ -276,28 +274,34 @@ export const storyService = {
   },
 
   getTranslatedContent: (chapterId: string, languageCode: string) => {
-    return apiClient.get<TranslationResponse>(`/api/ChapterTranslation/${chapterId}/content`, {
+    // Lưu ý: Endpoint này có thể không tồn tại trong Swagger,
+    // nhưng ReaderScreen đang dùng triggerTranslate để lấy URL nên hàm này ít dùng.
+    return apiClient.get<TranslationResponse>(`/api/ChapterTranslation/${chapterId}`, {
         params: { languageCode }
     });
   }
 };
 
-// --- CHAPTER SERVICE (Dành cho ReaderScreen) ---
-// Tôi thêm phần này để fix lỗi "Cannot find name 'chapterService'"
+// --- CHAPTER SERVICE (Dành cho mua bán & chi tiết) ---
 export const chapterService = {
   // Lấy chi tiết chương
   getChapterDetail: (chapterId: string) => {
     return apiClient.get(`/api/ChapterCatalog/${chapterId}`);
   },
 
-  // Lấy trạng thái giọng đọc (Giả định URL, bạn kiểm tra lại với Swagger nếu lỗi 404)
+  // Lấy trạng thái giọng đọc
   getChapterVoicesStatus: (chapterId: string) => {
-    return apiClient.get<ChapterVoiceStatus[]>(`/api/ChapterVoice/${chapterId}/status`);
+    return apiClient.get<ChapterVoiceStatus[]>(`/api/ChapterCatalog/${chapterId}/voices`);
   },
 
-  // Mua giọng đọc cho chương
+  // Mua chương (Đúng Swagger: ID trên URL)
+  buyChapter: (chapterId: string) => {
+    return apiClient.post(`/api/ChapterPurchase/${chapterId}`);
+  },
+
+  // Mua giọng đọc cho chương (Đúng Swagger: ID trên URL)
   buyVoiceForChapter: (chapterId: string, voiceIds: string[]) => {
-    return apiClient.post(`/api/ChapterVoice/buy`, { chapterId, voiceIds });
+    return apiClient.post(`/api/ChapterPurchase/${chapterId}/order-voice`, { voiceIds });
   }
 };
 

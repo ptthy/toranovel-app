@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { Lock, Zap, X } from 'lucide-react-native';
+import { useNavigation } from '@react-navigation/native'; // Thêm navigation để chuyển trang nạp tiền
+
 import { useTheme } from '../../contexts/ThemeProvider';
 import { chapterService } from '../../api/storyService';
-import { profileService } from '../../api/profileService'; // Import service chuẩn
-import { useAuth } from '../../contexts/AuthContext'; // Import AuthContext để update global state
+import { profileService } from '../../api/profileService';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface ChapterUnlockModalProps {
   visible: boolean;
@@ -20,7 +22,8 @@ interface ChapterUnlockModalProps {
 
 export function ChapterUnlockModal({ visible, onClose, chapter, onSuccess }: ChapterUnlockModalProps) {
   const { colors, typography } = useTheme();
-  const { fetchUserProfile } = useAuth(); // Lấy hàm này để update lại số dư toàn app sau khi mua
+  const { fetchUserProfile } = useAuth(); // Để update lại số dư toàn app
+  const navigation = useNavigation<any>();
   
   const [isLoading, setIsLoading] = useState(false);
   const [userBalance, setUserBalance] = useState<number>(0);
@@ -35,10 +38,10 @@ export function ChapterUnlockModal({ visible, onClose, chapter, onSuccess }: Cha
   const loadBalance = async () => {
     try {
         const res = await profileService.getProfile();
-        console.log("💰 Số dư trong Modal:", res.data.dias);
+        // console.log("💰 Số dư trong Modal:", res.data.dias);
         setUserBalance(res.data.dias || 0);
     } catch (error) {
-       console.log(error);
+       console.log("Lỗi lấy số dư:", error);
     }
   };
 
@@ -46,11 +49,13 @@ export function ChapterUnlockModal({ visible, onClose, chapter, onSuccess }: Cha
     if (!chapter) return;
     setIsLoading(true);
     try {
+      // 1. Gọi API mua chương (đã có trong service)
       await chapterService.buyChapter(chapter.chapterId);
       
-      // Mua xong -> Cập nhật lại số dư trong AuthContext (để màn hình Profile cũng tự cập nhật)
+      // 2. Cập nhật lại số dư global
       await fetchUserProfile(); 
       
+      // 3. Thông báo thành công
       Alert.alert("Thành công", "Mở khóa chương thành công!", [
         { text: "Đọc ngay", onPress: onSuccess }
       ]);
@@ -58,7 +63,7 @@ export function ChapterUnlockModal({ visible, onClose, chapter, onSuccess }: Cha
     } catch (error: any) {
       console.error("Lỗi mua chương:", error);
 
-      // Xử lý lỗi 409 (Đã mua rồi)
+      // Xử lý lỗi 409 (Đã mua rồi nhưng local chưa cập nhật)
       if (error.response && error.response.status === 409) {
           Alert.alert("Thông báo", "Bạn đã sở hữu chương này rồi.", [
               { text: "Vào đọc ngay", onPress: onSuccess }
@@ -73,7 +78,16 @@ export function ChapterUnlockModal({ visible, onClose, chapter, onSuccess }: Cha
     }
   };
 
+  const handleNavigateTopUp = () => {
+      onClose();
+      // Điều hướng đến màn hình nạp tiền (Sửa tên màn hình 'TopUp' nếu route của bạn khác)
+      navigation.navigate('TopUp'); 
+  };
+
   if (!visible || !chapter) return null;
+
+  const price = chapter.priceDias || 0;
+  const isNotEnoughMoney = userBalance < price;
 
   return (
     <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}>
@@ -94,25 +108,28 @@ export function ChapterUnlockModal({ visible, onClose, chapter, onSuccess }: Cha
 
           <Text style={{ color: colors.mutedForeground, textAlign: 'center', marginBottom: 20, paddingHorizontal: 10 }}>
             Nội dung chương <Text style={{fontWeight: 'bold'}}>#{chapter.chapterNo}</Text> được khóa.
-            Sử dụng Dias để mở khóa nhé!
+            Sử dụng 💎 để mở khóa nhé!
           </Text>
 
           {/* Box Số dư */}
           <View style={styles.balanceBox}>
             <Text style={{ color: '#666', fontSize: 12 }}>Số dư hiện tại</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-               <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#007AFF' }}>
+               <Text style={{ fontSize: 18, fontWeight: 'bold', color: isNotEnoughMoney ? '#EF4444' : '#007AFF' }}>
                  {userBalance.toLocaleString('en-US')}
                </Text>
-               <Text style={{ fontSize: 14, color: '#007AFF' }}>Dias</Text>
+               <Text style={{ fontSize: 14, color: isNotEnoughMoney ? '#EF4444' : '#007AFF' }}>💎</Text>
             </View>
           </View>
 
           {/* Nút Mua */}
           <TouchableOpacity 
-            style={[styles.buyButton, { opacity: isLoading ? 0.7 : 1 }]} 
+            style={[
+                styles.buyButton, 
+                { opacity: (isLoading || isNotEnoughMoney) ? 0.7 : 1, backgroundColor: isNotEnoughMoney ? '#9CA3AF' : '#F97316' }
+            ]} 
             onPress={handleBuy}
-            disabled={isLoading}
+            disabled={isLoading || isNotEnoughMoney}
           >
             {isLoading ? (
                <ActivityIndicator color="#fff" />
@@ -120,13 +137,19 @@ export function ChapterUnlockModal({ visible, onClose, chapter, onSuccess }: Cha
                <>
                  <Lock size={18} color="#fff" />
                  <Text style={styles.buyText}>
-                   Mở khóa ngay ({chapter.priceDias || 0} Dias)
+                   {isNotEnoughMoney ? "Không đủ số dư" : `Mở khóa ngay (${price} 💎)`}
                  </Text>
                </>
             )}
           </TouchableOpacity>
 
-         
+          {/* Nút Nạp tiền (Chỉ hiện khi không đủ tiền) */}
+          {isNotEnoughMoney && (
+              <TouchableOpacity style={styles.topupButton} onPress={handleNavigateTopUp}>
+                  <Zap size={18} color="#10B981" />
+                  <Text style={{ color: '#10B981', fontWeight: 'bold' }}>Nạp thêm 💎 ngay</Text>
+              </TouchableOpacity>
+          )}
 
         </View>
       </View>

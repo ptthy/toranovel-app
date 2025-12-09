@@ -9,7 +9,7 @@ interface MiniPlayerProps {
   voiceName: string;
   onPlayPause: () => void;
   onClose: () => void;
-  // --- THÊM 2 PROPS MỚI ---
+  // --- THÊM 2 DÒNG NÀY ĐỂ FIX LỖI ---
   playbackRate: number; 
   onChangeSpeed: () => void;
 }
@@ -20,8 +20,9 @@ export function MiniPlayer({
   voiceName, 
   onPlayPause, 
   onClose,
-  playbackRate,    // <--- nhận prop
-  onChangeSpeed    // <--- nhận prop
+  // --- NHẬN PROPS MỚI ---
+  playbackRate, 
+  onChangeSpeed 
 }: MiniPlayerProps) {
   const { colors } = useTheme();
 
@@ -35,14 +36,15 @@ export function MiniPlayer({
       </View>
 
       <View style={styles.controls}>
-        {/* --- NÚT CHỈNH TỐC ĐỘ --- */}
+        {/* --- NÚT CHỈNH TỐC ĐỘ (MỚI) --- */}
         <TouchableOpacity 
           onPress={onChangeSpeed}
           style={{ 
             paddingHorizontal: 8, 
             paddingVertical: 4, 
             backgroundColor: 'rgba(0,0,0,0.05)', 
-            borderRadius: 6 
+            borderRadius: 6,
+            marginRight: 4
           }}
         >
           <Text style={{ fontSize: 12, fontWeight: 'bold', color: colors.primary }}>

@@ -162,7 +162,7 @@ export function TopUpScreen() {
                 <View>
                   <Text style={styles.premiumTitle}>{subscriptionData.planName}</Text>
                   <Text style={styles.premiumSubtitle}>
-                    Nhận tổng {subscriptionData.dailyDias * subscriptionData.durationDays} Dias / {subscriptionData.durationDays} ngày
+                    Nhận tổng {subscriptionData.dailyDias * subscriptionData.durationDays} 💎 / {subscriptionData.durationDays} ngày
                   </Text>
                 </View>
                 <View style={styles.priceTag}>
@@ -178,7 +178,7 @@ export function TopUpScreen() {
               <View style={styles.featureList}>
                 {PREMIUM_FEATURES_UI.map((item, index) => {
                   let displayText = item.text;
-                  if (index === 0) displayText = `Nhận ${subscriptionData.dailyDias} Dias mỗi ngày`;
+                  if (index === 0) displayText = `Nhận ${subscriptionData.dailyDias} 💎 mỗi ngày`;
                   return (
                     <View key={index} style={styles.featureItem}>
                       <item.icon size={18} color="#FFD700" />

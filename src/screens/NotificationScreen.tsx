@@ -57,7 +57,7 @@ export function NotificationScreen() {
           recipientId: user?.id || 'me',
           type: 'subscription_reminder', // Type để xử lý click
           title: '🎁 Nhận Kim Cương Hàng Ngày',
-          message: `Bạn có ${subData.dailyDias} Dias chưa nhận hôm nay. Bấm vào đây để nhận ngay!`,
+          message: `Bạn có ${subData.dailyDias} 💎 chưa nhận hôm nay. Bấm vào đây để nhận ngay!`,
           isRead: false, // Luôn hiển thị chưa đọc để gây chú ý
           createdAt: new Date().toISOString(),
         };
