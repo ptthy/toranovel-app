@@ -49,6 +49,9 @@ import {
 } from "../api/storyService";
 import { MoodEffectView } from "../features/mood/MoodEffectView";
 
+// --- IMPORT COMPONENT MOOD ---
+import { MoodEffectView } from '../features/mood/MoodEffectView'; 
+
 const R2_BASE_URL = "https://pub-15618311c0ec468282718f80c66bcc13.r2.dev";
 
 const systemFonts = [

@@ -18,8 +18,8 @@ import {
   History,
   ChevronRight,
   LogOut,
-  Camera, // Icon cho nút đổi ảnh avatar
-  UserPen, // Icon cho nút sửa thông tin trên header
+  Camera,
+  UserPen,
   Crown,
   Wallet,
   ShieldCheck, 
@@ -33,6 +33,9 @@ import { useAuth } from "../contexts/AuthContext";
 import { storyService } from "../api/storyService"; 
 import { MainStackParamList } from "../navigation/types";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+
+// 1. Import Modal (Hãy chắc chắn đường dẫn đúng với cấu trúc thư mục của bạn)
+import { FollowedAuthorsModal } from "../components/ui/FollowedAuthorsModal"; // <--- THÊM DÒNG NÀY
 
 const getRoleBadgeConfig = (role: string) => {
   switch (role.toLowerCase()) {
@@ -50,6 +53,9 @@ export function ProfileScreen() {
 
   const [isPremium, setIsPremium] = useState(false);
   const [uploading, setUploading] = useState(false);
+  
+  // 2. Thêm state để bật tắt Modal
+  const [showFollowedModal, setShowFollowedModal] = useState(false); // <--- THÊM DÒNG NÀY
 
   useFocusEffect(
     useCallback(() => {
@@ -70,7 +76,6 @@ export function ProfileScreen() {
     ]);
   };
 
-  // 1. Xử lý đổi Avatar (Bấm vào nút máy ảnh ở Avatar)
   const handlePickAvatar = async () => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -100,7 +105,6 @@ export function ProfileScreen() {
     }
   };
 
-  // 2. Chuyển sang màn hình Edit (Bấm nút trên Header)
   const handleNavigateEdit = () => {
     navigation.navigate("EditProfile");
   };
@@ -125,11 +129,8 @@ export function ProfileScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       
-      {/* --- NEW HEADER BAR (Top Bar) --- */}
       <View style={styles.topBar}>
           <Text style={[typography.h3, { color: colors.foreground }]}>Cá nhân</Text>
-          
-          {/* Nút Edit Profile nằm ở góc phải (Vị trí bạn khoanh tròn) */}
           <TouchableOpacity onPress={handleNavigateEdit} style={styles.topBarBtn}>
               <UserPen size={22} color={colors.primary} />
           </TouchableOpacity>
@@ -142,7 +143,7 @@ export function ProfileScreen() {
           <View style={styles.avatarContainer}>
             {uploading ? (
                  <View style={[styles.avatar, {justifyContent: 'center', alignItems: 'center', backgroundColor: '#ddd'}]}>
-                     <ActivityIndicator color={colors.primary} />
+                      <ActivityIndicator color={colors.primary} />
                  </View>
             ) : (
                 <Image
@@ -151,7 +152,6 @@ export function ProfileScreen() {
                 />
             )}
             
-            {/* Nút đổi Avatar (Camera) nằm tại Avatar */}
             <TouchableOpacity 
                 style={[styles.cameraBadge, { backgroundColor: colors.primary, borderColor: colors.background }]}
                 onPress={handlePickAvatar}
@@ -160,7 +160,6 @@ export function ProfileScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Username */}
           <Text style={[typography.h3, { color: colors.foreground, marginTop: 12 }]}>
             {user?.username || "Người dùng"}
           </Text>
@@ -169,7 +168,6 @@ export function ProfileScreen() {
             {user?.email}
           </Text>
 
-          {/* BIO SECTION */}
           {user?.bio ? (
             <Text style={{ color: colors.foreground, textAlign: 'center', marginTop: 8, paddingHorizontal: 20, fontStyle: 'italic' }}>
               "{user.bio}"
@@ -180,7 +178,6 @@ export function ProfileScreen() {
             </Text>
           )}
 
-          {/* INFO ROW (Chỉ hiện Ngày sinh, ĐÃ ẨN GIỚI TÍNH) */}
           <View style={{flexDirection: 'row', gap: 16, marginTop: 8}}>
              {user?.dateOfBirth && (
                 <View style={{flexDirection: 'row', alignItems: 'center'}}>
@@ -192,7 +189,6 @@ export function ProfileScreen() {
              )}
           </View>
 
-          {/* BADGES */}
           <View style={styles.badgeRow}>
             {user?.roles && user.roles.map((role: string, index: number) => {
                 const conf = getRoleBadgeConfig(role);
@@ -237,19 +233,18 @@ export function ProfileScreen() {
         <View style={styles.menuSection}>
           <MenuItem icon={Bell} label="Thông báo" onPress={() => navigation.navigate("Notification")} />
           
+          {/* 3. Sửa sự kiện onPress để mở Modal */}
           <MenuItem 
             icon={Users} 
             label="Đang theo dõi" 
-            onPress={() => Alert.alert("Tính năng", "Đang phát triển: Danh sách tác giả đang theo dõi")} 
+            onPress={() => setShowFollowedModal(true)} // <--- SỬA DÒNG NÀY
           />
           
           <MenuItem icon={Library} label="Thư viện của tôi" onPress={() => navigation.navigate("MainTabs", { screen: "Library" })} />
           <MenuItem icon={History} label="Lịch sử giao dịch" onPress={() => navigation.navigate("MainTabs", { screen: "History" })} />
-          {/* Đã xóa mục "Chỉnh sửa hồ sơ" ở đây vì đã đưa lên Header */}
           <MenuItem icon={Settings} label="Cài đặt" onPress={() => navigation.navigate("Settings")} />
         </View>
 
-        {/* --- LOGOUT --- */}
         <View style={{ marginTop: 24 }}>
              <MenuItem icon={LogOut} label="Đăng xuất" onPress={handleLogout} isDestructive />
         </View>
@@ -259,13 +254,19 @@ export function ProfileScreen() {
         </Text>
 
       </ScrollView>
+
+      {/* 4. Render Modal ở cuối SafeAreaView */}
+      <FollowedAuthorsModal 
+        visible={showFollowedModal} 
+        onClose={() => setShowFollowedModal(false)} 
+      />
+      
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  // Style cho Header Bar mới
   topBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -276,14 +277,10 @@ const styles = StyleSheet.create({
   topBarBtn: {
     padding: 8,
   },
-
-  scrollContent: { padding: 20, paddingTop: 0 }, // Giảm padding top vì đã có topBar
-  
+  scrollContent: { padding: 20, paddingTop: 0 },
   header: { alignItems: "center", marginBottom: 20 },
   avatarContainer: { position: "relative" },
   avatar: { width: 90, height: 90, borderRadius: 45, borderWidth: 3, borderColor: "#fff" },
-  
-  // Style nút camera đổi ảnh
   cameraBadge: { 
     position: "absolute", 
     bottom: 0, 
@@ -292,7 +289,6 @@ const styles = StyleSheet.create({
     borderRadius: 20, 
     borderWidth: 2 
   },
-  
   badgeRow: { flexDirection: "row", marginTop: 12, gap: 8, flexWrap: 'wrap', justifyContent: 'center' },
   badge: { flexDirection: "row", alignItems: "center", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, gap: 4 },
   badgeText: { fontSize: 11, fontWeight: "700" },

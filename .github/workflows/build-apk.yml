@@ -1,0 +1,134 @@
+name: Build APK
+
+on:
+  # Manual trigger from GitHub Actions tab
+  workflow_dispatch:
+
+  # Auto trigger when creating a tag
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    name: Build APK with EAS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Build APK with EAS
+        run: |
+          echo "Building with profile: preview"
+          eas build --platform android --profile preview --non-interactive --no-wait > build-output.txt
+
+          # Extract build ID from the logs URL
+          BUILD_URL=$(grep -oP 'https://expo.dev/accounts/[^/]+/projects/[^/]+/builds/\K[a-f0-9-]+' build-output.txt)
+          echo "BUILD_ID=$BUILD_URL" >> $GITHUB_ENV
+          echo "Build ID: $BUILD_URL"
+
+      - name: Get build URL and wait for completion
+        run: |
+          echo "Waiting for build ${{ env.BUILD_ID }} to complete..."
+
+          # Poll until build completes (max 120 minutes - includes queue time)
+          TIMEOUT=7200
+          ELAPSED=0
+          INTERVAL=30
+
+          while [ $ELAPSED -lt $TIMEOUT ]; do
+            STATUS=$(eas build:view ${{ env.BUILD_ID }} --json | jq -r '.status')
+            echo "Build status: $STATUS (${ELAPSED}s elapsed)"
+
+            if [ "$STATUS" = "FINISHED" ]; then
+              ARTIFACT_URL=$(eas build:view ${{ env.BUILD_ID }} --json | jq -r '.artifacts.buildUrl')
+              echo "ARTIFACT_URL=$ARTIFACT_URL" >> $GITHUB_ENV
+              echo "Build completed successfully!"
+              echo "APK URL: $ARTIFACT_URL"
+              break
+            elif [ "$STATUS" = "ERRORED" ] || [ "$STATUS" = "CANCELED" ]; then
+              echo "Build failed with status: $STATUS"
+              exit 1
+            fi
+
+            sleep $INTERVAL
+            ELAPSED=$((ELAPSED + INTERVAL))
+          done
+
+          if [ $ELAPSED -ge $TIMEOUT ]; then
+            echo "Build timed out after ${TIMEOUT}s"
+            exit 1
+          fi
+
+      - name: Download APK
+        run: |
+          echo "Downloading APK from: ${{ env.ARTIFACT_URL }}"
+          curl -L -o toranovel.apk "${{ env.ARTIFACT_URL }}"
+
+      - name: Get version info
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            # For tags
+            echo "VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
+          else
+            # For manual builds
+            DATE=$(date +'%Y.%m.%d-%H%M')
+            echo "VERSION=v$DATE" >> $GITHUB_ENV
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ env.VERSION }}
+          name: Release ${{ env.VERSION }}
+          body: |
+            ## 📱 ToraNovel APK Release
+
+            **Build Profile:** `preview`
+            **Platform:** Android
+            **Build ID:** `${{ env.BUILD_ID }}`
+            **Commit:** ${{ github.sha }}
+
+            ### Installation Instructions:
+            1. Download the APK file below
+            2. Transfer to your Android device
+            3. Enable "Install from unknown sources" in Settings
+            4. Open and install the APK
+
+            ### Auto-Update:
+            ✅ This build includes OTA (Over-The-Air) updates. Future updates will be delivered automatically without reinstalling the APK!
+
+            ---
+            🤖 Built automatically with EAS Build + GitHub Actions
+          files: toranovel.apk
+          draft: false
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Post build summary
+        run: |
+          echo "### ✅ Build Complete!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Profile:** preview" >> $GITHUB_STEP_SUMMARY
+          echo "**Build ID:** ${{ env.BUILD_ID }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ env.VERSION }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "APK has been uploaded to GitHub Releases!" >> $GITHUB_STEP_SUMMARY
