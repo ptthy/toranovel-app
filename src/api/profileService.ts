@@ -36,42 +36,38 @@ export interface FollowedListResponse {
 
 // --- 3. Service ---
 export const profileService = {
-  /**
-   * Lấy thông tin Profile + Số dư ví
-   */
   getProfile: async () => {
     try {
-      // 1. Gọi API Profile gốc
-      const profilePromise = apiClient.get<any>('/api/Profile');
+      // 1. Lấy thông tin cơ bản
+      const profileRes = await apiClient.get<any>('/api/Profile');
       
-      // 2. Gọi API Wallet
-      const walletPromise = apiClient.get(`/api/Profile/wallet?t=${new Date().getTime()}`)
-        .then(res => res.data?.diaBalance ?? 0)
-        .catch((err) => {
-            console.log("Lỗi gọi Wallet:", err);
-            return 0;
+      // 2. Lấy thông tin ví (Wallet)
+      // Thêm timestamp để tránh cache
+      const walletRes = await apiClient.get<any>(`/api/Profile/wallet?t=${new Date().getTime()}`)
+        .catch(err => {
+            console.log("Lỗi lấy ví:", err);
+            return { data: { diaBalance: 0, isAuthor: false } };
         });
 
-      // 3. Chạy song song
-      const [profileRes, diasAmount] = await Promise.all([profilePromise, walletPromise]);
-
-      // 4. Gộp dữ liệu
+      // 3. Gộp dữ liệu
       const mergedData: UserProfile = {
         ...profileRes.data,
-        dias: diasAmount, 
+        dias: walletRes.data.diaBalance || 0,
+        isAuthor: walletRes.data.isAuthor || false,
+        subscription: walletRes.data.subscription || null
       };
 
       return { data: mergedData };
-
     } catch (error) {
-      console.error("Lỗi lấy profile:", error);
+      console.error("Lỗi service getProfile:", error);
       throw error;
     }
   },
 
-  updateProfile: (data: UpdateProfileData) => apiClient.put('/api/Profile', data),
+  updateProfile: (data: any) => apiClient.put('/api/Profile', data),
   
   uploadAvatar: (formData: FormData) => apiClient.post<{ avatarUrl: string }>('/api/Profile/avatar', formData),
+
   
   requestEmailChange: (data: any) => apiClient.post('/api/Profile/email/otp', data),
   

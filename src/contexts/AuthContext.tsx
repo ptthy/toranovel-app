@@ -9,7 +9,7 @@ import apiClient from '../api/apiClient';
 type AuthContextType = {
   isLoggedIn: boolean;
   isLoading: boolean;
-  user: any; // Dùng any tạm thời để tránh lỗi Type nếu UserProfile chưa update
+  user: UserProfile | null; // Dùng type chuẩn
   signIn: (identifier: string, password: string) => Promise<boolean>;
   signOut: () => void;
   signInWithGoogle: (idToken: string) => Promise<boolean>;
@@ -27,52 +27,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // --- HÀM ĐÃ SỬA: GỌI CẢ PROFILE VÀ WALLET ---
   const fetchUserProfile = async () => {
     try {
-      // 1. Gọi API lấy thông tin cơ bản (Tên, Avatar...)
-      const profileResponse = await profileService.getProfile();
-      const profileData = profileResponse.data;
-
-      // 2. Gọi API lấy thông tin Ví (Số dư Dias)
-      // Thêm timestamp ?t=... để tránh bị Cache dữ liệu cũ
-      const walletResponse = await apiClient.get(`/api/Profile/wallet?t=${new Date().getTime()}`);
-      const walletData = walletResponse.data;
-
-      console.log("DEBUG - Wallet Data:", walletData); // Check log xem ra 2400 chưa
-
-      // 3. Gộp dữ liệu và Map 'diaBalance' thành 'dias'
-      setUser({
-        ...profileData, // Giữ lại username, email...
-        dias: walletData.diaBalance || 0, // <-- QUAN TRỌNG: Map đúng field này UI mới hiện
-        isAuthor: walletData.isAuthor,
-        subscription: walletData.subscription
-      });
+      // Gọi service đã xử lý logic gộp API rồi
+      const res = await profileService.getProfile();
+      
+      console.log("🔥 User Data (Sau khi gộp):", res.data);
+      setUser(res.data);
 
     } catch (e) {
-      console.error("Failed to fetch user profile or wallet", e);
-      // Ném lỗi ra ngoài để `checkAuthStatus` bắt được
+      console.error("Lỗi fetchUserProfile context:", e);
       throw e; 
     }
   };
 
-  useEffect(() => {
+useEffect(() => {
     const checkAuthStatus = async () => {
       try {
         const token = await AsyncStorage.getItem('authToken');
         if (token) {
           apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
           
-          // Gọi hàm fetch profile (đã bao gồm wallet)
           await fetchUserProfile();
           setIsLoggedIn(true);
         }
-      } catch (e) {
-        console.error("Auth status check failed (likely expired token)", e);
-        // Tự động dọn dẹp token rác
-        await AsyncStorage.removeItem('authToken');
-        delete apiClient.defaults.headers.common['Authorization'];
-        setUser(null);
-        setIsLoggedIn(false);
+      } catch (e: any) {
+        // Lỗi 404 thường do Token cũ/sai -> API trả về Unauthorized hoặc Not Found
+        console.error("Check Auth thất bại:", e);
+        
+        // Chỉ logout nếu lỗi 401 (Unauthorized) hoặc token rác
+        // Nếu lỗi 404 do API sai đường dẫn thì không nên logout vội
+        if (e.response?.status === 401 || e.response?.status === 403) {
+             await signOut();
+        }
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     };
 
     checkAuthStatus();
