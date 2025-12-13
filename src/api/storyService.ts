@@ -266,21 +266,22 @@ export const storyService = {
       `/api/ChapterTranslation/${chapterId}`
     );
   },
+triggerTranslate: (chapterId: string, targetLanguageCode: string) => {
+  return apiClient.post(
+    `/api/ChapterTranslation/${chapterId}`,
+    { targetLanguageCode },
+    { timeout: 120000 }
+  );
+},
 
-  triggerTranslate: (chapterId: string, targetLanguageCode: string) => {
-    return apiClient.post(`/api/ChapterTranslation/${chapterId}`, {
-      targetLanguageCode,
-    });
+ getTranslatedContent: (chapterId: string, languageCode: string) => {
+    return apiClient.get<TranslationResponse>(
+      `/api/ChapterTranslation/${chapterId}`,
+      { params: { languageCode } }
+    );
   },
+}; 
 
-  getTranslatedContent: (chapterId: string, languageCode: string) => {
-    // Lưu ý: Endpoint này có thể không tồn tại trong Swagger,
-    // nhưng ReaderScreen đang dùng triggerTranslate để lấy URL nên hàm này ít dùng.
-    return apiClient.get<TranslationResponse>(`/api/ChapterTranslation/${chapterId}`, {
-        params: { languageCode }
-    });
-  }
-};
 
 // --- CHAPTER SERVICE (Dành cho mua bán & chi tiết) ---
 export const chapterService = {
@@ -313,4 +314,4 @@ export const subscriptionService = {
     claimDaily: () => {
         return apiClient.post('/api/Subscription/claim-daily');
     }
-};
+  };

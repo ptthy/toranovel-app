@@ -266,55 +266,58 @@ export function ReaderScreen() {
     if (chapterId) loadChapter(chapterId);
   }, [chapterId]);
 
-  // --- [FIXED] LOGIC DỊCH THUẬT MỚI ---
-  const handleTranslate = async (targetLang: string) => {
-    setIsTranslateVisible(false);
-    if (targetLang === "original") {
-      setChapterContent(originalContent);
-      setCurrentLang("original");
-      return;
-    }
+const handleTranslate = async (targetLang: string) => {
+  setIsTranslateVisible(false);
 
-    const isPremium = await storyService.checkPremiumStatus();
-    if (!isPremium) {
+  if (targetLang === "original") {
+    setChapterContent(originalContent);
+    setCurrentLang("original");
+    return;
+  }
+
+  const isPremium = await storyService.checkPremiumStatus();
+  if (!isPremium) {
+    Alert.alert(
+      "Premium",
+      "Nâng cấp gói thành viên để sử dụng tính năng Dịch."
+    );
+    return;
+  }
+
+  setIsTranslating(true);
+  try {
+    const res = await storyService.triggerTranslate(chapterId, targetLang);
+    const data = res.data;
+
+    if (data && data.contentUrl) {
+      const fullUrl = data.contentUrl.startsWith("http")
+        ? data.contentUrl
+        : `${R2_BASE_URL}/${data.contentUrl}`;
+
+      const textRes = await fetch(`${fullUrl}?t=${Date.now()}`);
+      const text = await textRes.text();
+
+      setChapterContent(text);
+      setCurrentLang(targetLang);
+    } else {
       Alert.alert(
-        "Premium",
-        "Nâng cấp gói thành viên để sử dụng tính năng Dịch."
+        "Thông báo",
+        "Chưa có bản dịch cho ngôn ngữ này hoặc đang xử lý."
       );
-      return;
     }
-
-    setIsTranslating(true);
-    try {
-      // Gọi API POST để lấy bản dịch
-      const res = await storyService.triggerTranslate(chapterId, targetLang);
-      const data = res.data;
-
-      // Nếu có contentUrl trả về
-      if (data && data.contentUrl) {
-        let fullUrl = data.contentUrl.startsWith("http")
-          ? data.contentUrl
-          : `${R2_BASE_URL}/${data.contentUrl}`;
-
-        // Thêm timestamp để tránh cache
-        const textRes = await fetch(`${fullUrl}?t=${new Date().getTime()}`);
-        const text = await textRes.text();
-
-        setChapterContent(text);
-        setCurrentLang(targetLang);
-      } else {
-        Alert.alert(
-          "Thông báo",
-          "Chưa có bản dịch cho ngôn ngữ này hoặc đang xử lý."
-        );
-      }
-    } catch (error: any) {
-      console.error(error);
+  } catch (error: any) {
+    if (error.response?.status === 409) {
+      Alert.alert(
+        "Đang xử lý",
+        "Bản dịch đang được tạo hoặc đã tồn tại. Vui lòng thử lại sau."
+      );
+    } else {
       Alert.alert("Lỗi", "Không thể dịch chương này.");
-    } finally {
-      setIsTranslating(false);
     }
-  };
+  } finally {
+    setIsTranslating(false);
+  }
+};
 
   const playTrack = async (index: number) => {
     const isPremium = await storyService.checkPremiumStatus();
