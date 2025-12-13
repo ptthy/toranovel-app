@@ -90,7 +90,7 @@ const [showPassword, setShowPassword] = useState(false);
           showsVerticalScrollIndicator={false}
         >
           <Input
-            label="Email"
+            label="Email hoặc Username"
             placeholder="example@email.com"
             value={email}
             onChangeText={setEmail}
@@ -99,7 +99,7 @@ const [showPassword, setShowPassword] = useState(false);
           />
          <Input
   label="Mật khẩu"
-  placeholder="mật khẩu"
+  placeholder="Nhập mật khẩu"
   value={password}
   onChangeText={setPassword}
   secureTextEntry={!showPassword}
