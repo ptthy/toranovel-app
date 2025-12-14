@@ -92,8 +92,7 @@ export function LibraryScreen() {
 
   const [routes] = useState<Route[]>([
     { key: 'saved', title: 'Đã lưu' },
-    { key: 'history', title: 'Lịch sử' },
-    { key: 'downloaded', title: 'Đã tải' }
+   
   ]);
 
   const [savedStories, setSavedStories] = useState<LibraryStory[]>([]);
