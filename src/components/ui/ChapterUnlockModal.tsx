@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
-import { Lock, Zap, X } from 'lucide-react-native';
-import { useNavigation } from '@react-navigation/native'; // Thêm navigation để chuyển trang nạp tiền
+import { Lock, Zap, X, CheckCircle } from 'lucide-react-native'; // Thêm icon CheckCircle
+import { useNavigation } from '@react-navigation/native';
 
 import { useTheme } from '../../contexts/ThemeProvider';
 import { chapterService } from '../../api/storyService';
@@ -38,7 +38,6 @@ export function ChapterUnlockModal({ visible, onClose, chapter, onSuccess }: Cha
   const loadBalance = async () => {
     try {
         const res = await profileService.getProfile();
-        // console.log("💰 Số dư trong Modal:", res.data.dias);
         setUserBalance(res.data.dias || 0);
     } catch (error) {
        console.log("Lỗi lấy số dư:", error);
@@ -49,28 +48,32 @@ export function ChapterUnlockModal({ visible, onClose, chapter, onSuccess }: Cha
     if (!chapter) return;
     setIsLoading(true);
     try {
-      // 1. Gọi API mua chương (đã có trong service)
+      // 1. Gọi API mua chương
       await chapterService.buyChapter(chapter.chapterId);
       
-      // 2. Cập nhật lại số dư global
-      await fetchUserProfile(); 
+      // 2. Mua thành công -> Cập nhật lại số dư global & local
+      await fetchUserProfile();
       
-      // 3. Thông báo thành công
+      // 3. Thông báo và mở truyện
       Alert.alert("Thành công", "Mở khóa chương thành công!", [
         { text: "Đọc ngay", onPress: onSuccess }
       ]);
       
     } catch (error: any) {
-      console.error("Lỗi mua chương:", error);
+      console.log("Status code mua chương:", error.response?.status);
 
-      // Xử lý lỗi 409 (Đã mua rồi nhưng local chưa cập nhật)
+      // --- [FIX QUAN TRỌNG] Xử lý lỗi 409 (Đã mua rồi) ---
       if (error.response && error.response.status === 409) {
-          Alert.alert("Thông báo", "Bạn đã sở hữu chương này rồi.", [
-              { text: "Vào đọc ngay", onPress: onSuccess }
+          // Vẫn gọi cập nhật ví để đồng bộ dữ liệu
+          fetchUserProfile();
+          
+          Alert.alert("Đã sở hữu", "Bạn đã mua chương này rồi. Hệ thống sẽ mở ngay bây giờ.", [
+              { text: "Vào đọc ngay", onPress: onSuccess } // Gọi onSuccess để đóng modal và vào truyện
           ]);
           return;
       }
 
+      // Các lỗi khác
       const msg = error.response?.data?.message || "Số dư không đủ hoặc lỗi hệ thống.";
       Alert.alert("Thất bại", msg);
     } finally {
@@ -80,7 +83,7 @@ export function ChapterUnlockModal({ visible, onClose, chapter, onSuccess }: Cha
 
   const handleNavigateTopUp = () => {
       onClose();
-      // Điều hướng đến màn hình nạp tiền (Sửa tên màn hình 'TopUp' nếu route của bạn khác)
+      // Điều hướng đến màn hình nạp tiền (Kiểm tra lại tên route của bạn, ví dụ 'TopUp' hoặc 'Wallet')
       navigation.navigate('TopUp'); 
   };
 
@@ -135,7 +138,7 @@ export function ChapterUnlockModal({ visible, onClose, chapter, onSuccess }: Cha
                <ActivityIndicator color="#fff" />
             ) : (
                <>
-                 <Lock size={18} color="#fff" />
+                 {isNotEnoughMoney ? <Lock size={18} color="#fff" /> : <CheckCircle size={18} color="#fff" />}
                  <Text style={styles.buyText}>
                    {isNotEnoughMoney ? "Không đủ số dư" : `Mở khóa ngay (${price} 💎)`}
                  </Text>

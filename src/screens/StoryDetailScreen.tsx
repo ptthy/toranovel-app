@@ -1,21 +1,22 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { 
-  View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, Animated, Dimensions
+  View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, Animated
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Image } from 'expo-image'; // Hoặc import { Image } from 'react-native';
+import { Image } from 'expo-image';
 import { useTheme } from '../contexts/ThemeProvider';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { ArrowLeft, List, User, Lock, LockOpen, Star, Flag, Heart, CheckCircle, XCircle } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
-// --- IMPORTS SERVICES ---
+// --- IMPORTS ---
+import apiClient from '../api/apiClient'; // Import apiClient để gọi API lịch sử
 import { Chapter, StoryDetail, storyService, StoryRating } from '../api/storyService';
 import { RatingModal } from '../components/ui/RatingModal'; 
 import { ReportModal } from '../components/ui/ReportModal';
 import { ChapterUnlockModal } from '../components/ui/ChapterUnlockModal';
 
-// --- COMPONENT TOAST THÔNG BÁO (Custom) ---
+// --- COMPONENT TOAST THÔNG BÁO ---
 const ToastNotification = ({ visible, message, type }: { visible: boolean, message: string, type: 'success' | 'error' }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(-100)).current;
@@ -34,12 +35,10 @@ const ToastNotification = ({ visible, message, type }: { visible: boolean, messa
     }
   }, [visible]);
 
-  // SỬA LẠI DÒNG NÀY: Ép kiểu as any để lấy _value hoặc bỏ qua kiểm tra
   if (!visible && (fadeAnim as any)._value === 0) return null; 
 
   return (
     <Animated.View style={[styles.toastContainer, { opacity: fadeAnim, transform: [{ translateY }] }]}>
-       {/* ... nội dung giữ nguyên ... */}
        <View style={[styles.toastContent, { backgroundColor: type === 'success' ? '#E8F5E9' : '#FFEBEE', borderColor: type === 'success' ? '#4CAF50' : '#F44336' }]}>
           {type === 'success' ? <CheckCircle size={20} color="#4CAF50" /> : <XCircle size={20} color="#F44336" />}
           <Text style={[styles.toastText, { color: type === 'success' ? '#2E7D32' : '#C62828' }]}>{message}</Text>
@@ -59,9 +58,11 @@ export function StoryDetailScreen() {
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  // State Favorite
+  // 🔥 STATE QUAN TRỌNG: Lưu danh sách ID các chương đã mua
+  const [purchasedChapterIds, setPurchasedChapterIds] = useState<Set<string>>(new Set());
+
   const [isFavorite, setIsFavorite] = useState(false);
-  const [isFavLoading, setIsFavLoading] = useState(false); // Tránh spam nút
+  const [isFavLoading, setIsFavLoading] = useState(false);
 
   // State Modals
   const [ratingData, setRatingData] = useState<StoryRating | null>(null);
@@ -70,24 +71,24 @@ export function StoryDetailScreen() {
   const [showUnlockModal, setShowUnlockModal] = useState(false);
   const [selectedChapter, setSelectedChapter] = useState<Chapter | null>(null);
 
-  // State Toast
   const [toast, setToast] = useState({ visible: false, message: '', type: 'success' as 'success' | 'error' });
 
-  // --- HELPER: SHOW TOAST ---
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ visible: true, message, type });
-    setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 2500); // Tự tắt sau 2.5s
+    setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 2500);
   };
 
   // --- FETCH DATA ---
   const fetchData = async () => {
     try {
-      const [storyRes, chapterRes, ratingRes, favRes] = await Promise.allSettled([
+      // Gọi song song các API cần thiết
+      const [storyRes, chapterRes, ratingRes, favRes, historyRes] = await Promise.allSettled([
         storyService.getStoryDetail(storyId),
         storyService.getChapters(storyId),
         storyService.getStoryRating(storyId),
-        // Lấy danh sách favorite để check xem truyện này có trong đó không
-        storyService.getFavoriteStories(1, 100) 
+        storyService.getFavoriteStories(1, 100),
+        // 🔥 GỌI API LỊCH SỬ MUA (Giống file TransactionHistoryScreen của bạn)
+        apiClient.get('/api/ChapterPurchase/chapter-history') 
       ]);
 
       if (storyRes.status === 'fulfilled') {
@@ -102,11 +103,21 @@ export function StoryDetailScreen() {
         }
       }
 
+      // 🔥 XỬ LÝ DỮ LIỆU ĐÃ MUA
+      if (historyRes.status === 'fulfilled') {
+        const data = historyRes.value.data; // Dữ liệu trả về từ API
+        if (Array.isArray(data)) {
+            // Lấy ra danh sách chapterId từ lịch sử
+            const boughtIds = new Set(data.map((item: any) => item.chapterId));
+            setPurchasedChapterIds(boughtIds);
+            // console.log("Các chương user đã mua:", boughtIds);
+        }
+      }
+
       if (ratingRes.status === 'fulfilled') {
         setRatingData(ratingRes.value.data);
       }
 
-      // Logic check favorite thủ công (nếu API getDetail chưa trả về isFavorite)
       if (favRes.status === 'fulfilled') {
         const myFavs = favRes.value.data.items || [];
         const found = myFavs.some((item: any) => item.storyId === storyId);
@@ -124,19 +135,15 @@ export function StoryDetailScreen() {
     useCallback(() => { fetchData(); }, [storyId])
   );
 
-  // --- HANDLER: TOGGLE FAVORITE ---
   const handleToggleFavorite = async () => {
     if (isFavLoading) return;
     setIsFavLoading(true);
-
     try {
       if (isFavorite) {
-        // Đang tim -> Bỏ tim (DELETE)
         await storyService.removeFavorite(storyId);
         setIsFavorite(false);
         showToast('Đã xóa khỏi Thư viện', 'success');
       } else {
-        // Chưa tim -> Thêm tim (POST)
         await storyService.addFavorite(storyId);
         setIsFavorite(true);
         showToast('Đã thêm vào Thư viện thành công!', 'success');
@@ -149,9 +156,24 @@ export function StoryDetailScreen() {
     }
   };
 
-  // ... (Giữ nguyên logic handlePressChapter, handleUnlockSuccess, renderChapterItem) ...
+  // --- LOGIC CHECK KHÓA ---
+  const checkIsLocked = (chapter: Chapter) => {
+    // 1. Nếu ID chương này nằm trong danh sách đã mua -> MỞ NGAY
+    if (purchasedChapterIds.has(chapter.chapterId)) {
+        return false; 
+    }
+
+    // 2. Nếu chương miễn phí (isLocked = false) -> MỞ
+    // Ép kiểu any phòng trường hợp server trả về khác model
+    const ch = chapter as any;
+    if (!ch.isLocked) return false;
+
+    // 3. Còn lại -> KHÓA
+    return true;
+  };
+
   const handlePressChapter = (chapter: Chapter) => {
-    if (chapter.isLocked) {
+    if (checkIsLocked(chapter)) {
       setSelectedChapter(chapter);
       setShowUnlockModal(true);
     } else {
@@ -161,42 +183,55 @@ export function StoryDetailScreen() {
 
   const handleUnlockSuccess = () => {
     setShowUnlockModal(false);
-    fetchData(); 
+
+    // Cập nhật client-side ngay lập tức để icon biến thành mở khóa
     if (selectedChapter) {
-        navigation.navigate('Reader', { storyId: storyId, chapterId: selectedChapter.chapterId });
+        setPurchasedChapterIds(prev => new Set(prev).add(selectedChapter.chapterId));
+        
+        showToast('Mở khóa thành công!', 'success');
+        
+        setTimeout(() => {
+             navigation.navigate('Reader', { storyId: storyId, chapterId: selectedChapter.chapterId });
+        }, 300);
     }
+    
+    // Gọi lại API sync dữ liệu nền
+    fetchData(); 
   };
 
-  const renderChapterItem = (chapter: Chapter) => (
-    <TouchableOpacity 
-      key={chapter.chapterId}
-      style={[styles.chapterItem, { borderBottomColor: colors.border }]}
-      onPress={() => handlePressChapter(chapter)} 
-    >
-      <View style={{ flex: 1 }}>
-        <Text style={[typography.p, { color: colors.foreground, fontWeight: '500' }]}>
-          {chapter.title || `Chương ${chapter.chapterNo}`}
-        </Text>
-        <Text style={{ color: colors.mutedForeground, fontSize: 12, marginTop: 2 }}>
-          {new Date(chapter.publishedAt).toLocaleDateString('vi-VN')} • {chapter.wordCount} chữ
-        </Text>
-      </View>
-      <View style={{ marginLeft: 10, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-        {chapter.isLocked ? (
-           <>
-             <Text style={{ color: colors.mutedForeground, fontSize: 12, fontWeight: '600' }}>
-               {chapter.priceDias ?? 0} 💎
-             </Text>
-             <Lock size={16} color="#DC3545" />
-           </>
-        ) : (
-           <LockOpen size={16} color={colors.primary} /> 
-        )}
-      </View>
-    </TouchableOpacity>
-  );
+  const renderChapterItem = (chapter: Chapter) => {
+    const isLocked = checkIsLocked(chapter); // Sử dụng hàm check mới
 
-  // --- RENDER ---
+    return (
+      <TouchableOpacity 
+        key={chapter.chapterId}
+        style={[styles.chapterItem, { borderBottomColor: colors.border }]}
+        onPress={() => handlePressChapter(chapter)} 
+      >
+        <View style={{ flex: 1 }}>
+          <Text style={[typography.p, { color: colors.foreground, fontWeight: '500' }]}>
+            {chapter.title || `Chương ${chapter.chapterNo}`}
+          </Text>
+          <Text style={{ color: colors.mutedForeground, fontSize: 12, marginTop: 2 }}>
+            {new Date(chapter.publishedAt).toLocaleDateString('vi-VN')} • {chapter.wordCount} chữ
+          </Text>
+        </View>
+        <View style={{ marginLeft: 10, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          {isLocked ? (
+             <>
+               <Text style={{ color: colors.mutedForeground, fontSize: 12, fontWeight: '600' }}>
+                 {chapter.priceDias ?? 0} 💎
+               </Text>
+               <Lock size={16} color="#DC3545" />
+             </>
+          ) : (
+             <LockOpen size={16} color={colors.primary} /> 
+          )}
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
   if (isLoading || !story) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
@@ -207,24 +242,19 @@ export function StoryDetailScreen() {
 
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]} edges={['top']}>
-      {/* --- TOAST COMPONENT (Đặt ở trên cùng để đè lên UI) --- */}
       <ToastNotification visible={toast.visible} message={toast.message} type={toast.type} />
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         
-        {/* Header & Cover */}
         <View style={styles.headerContainer}>
           <Image source={{ uri: story.coverUrl }} style={styles.backgroundImage} blurRadius={15} />
           <LinearGradient colors={['transparent', colors.background]} style={styles.gradientOverlay} />
           
-          {/* Nút Back */}
           <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
             <ArrowLeft size={24} color="#FFF" />
           </TouchableOpacity>
 
-          {/* Group Nút phải: Favorite + Report */}
           <View style={styles.topRightButtons}>
-             {/* 1. Nút Tim (Favorite) */}
              <TouchableOpacity 
                 style={styles.iconButton} 
                 onPress={handleToggleFavorite}
@@ -233,11 +263,10 @@ export function StoryDetailScreen() {
                 <Heart 
                   size={24} 
                   color={isFavorite ? "#FF4B4B" : "#FFF"} 
-                  fill={isFavorite ? "#FF4B4B" : "transparent"} // Tim đặc nếu đã thích
+                  fill={isFavorite ? "#FF4B4B" : "transparent"} 
                 />
              </TouchableOpacity>
 
-             {/* 2. Nút Report */}
              <TouchableOpacity style={styles.iconButton} onPress={() => setShowReportModal(true)}>
                 <Flag size={24} color="#FFF" />
              </TouchableOpacity>
@@ -248,11 +277,9 @@ export function StoryDetailScreen() {
           </View>
         </View>
 
-        {/* Info Container */}
         <View style={styles.infoContainer}>
           <Text style={[typography.h2, styles.title, { color: colors.foreground }]}>{story.title}</Text>
           
-          {/* ... (Các phần Author, Tags, Stats Box, Description giữ nguyên như code cũ) ... */}
            <View style={styles.metaRow}>
             <User size={16} color={colors.mutedForeground} />
             <TouchableOpacity onPress={() => navigation.navigate('AuthorProfile', { authorId: story.authorId })}>
@@ -283,7 +310,7 @@ export function StoryDetailScreen() {
                 {ratingData?.averageScore ? ratingData.averageScore.toFixed(1) : "0.0"}
               </Text>
               <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>
-                 Đánh giá ({ratingData?.totalRatings || 0})
+                  Đánh giá ({ratingData?.totalRatings || 0})
               </Text>
             </TouchableOpacity>
           </View>
@@ -295,7 +322,6 @@ export function StoryDetailScreen() {
             {story.description}
           </Text>
 
-          {/* Chapter List */}
           <View style={styles.chapterHeaderRow}>
              <Text style={[typography.h4, { color: colors.foreground }]}>Danh sách chương</Text>
              <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>{chapters.length} chương</Text>
@@ -311,7 +337,6 @@ export function StoryDetailScreen() {
         </View>
       </ScrollView>
 
-      {/* --- MODALS --- */}
       <RatingModal visible={showRatingModal} onClose={() => setShowRatingModal(false)} storyId={storyId} currentRating={ratingData?.viewerRating} onSuccess={fetchData} />
       <ReportModal visible={showReportModal} onClose={() => setShowReportModal(false)} targetId={storyId} targetType="Story" />
       <ChapterUnlockModal visible={showUnlockModal} chapter={selectedChapter} onClose={() => setShowUnlockModal(false)} onSuccess={handleUnlockSuccess} />
@@ -327,37 +352,16 @@ const styles = StyleSheet.create({
   headerContainer: { height: 280, alignItems: 'center', justifyContent: 'flex-end' },
   backgroundImage: { ...StyleSheet.absoluteFillObject, opacity: 0.5 },
   gradientOverlay: { ...StyleSheet.absoluteFillObject },
-  
-  // Back button
   backButton: { position: 'absolute', top: 16, left: 16, zIndex: 10, padding: 8, backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 20 },
-  
-  // Top Right Buttons (Heart & Report)
-  topRightButtons: { 
-    position: 'absolute', top: 16, right: 16, zIndex: 10, 
-    flexDirection: 'row', gap: 12 
-  },
+  topRightButtons: { position: 'absolute', top: 16, right: 16, zIndex: 10, flexDirection: 'row', gap: 12 },
   iconButton: { padding: 8, backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 20 },
-
-  coverWrapper: { 
-    width: 130, height: 190, borderRadius: 8, overflow: 'hidden', 
-    shadowColor: '#000', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.3, elevation: 8,
-    marginBottom: -20, zIndex: 5
-  },
+  coverWrapper: { width: 130, height: 190, borderRadius: 8, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.3, elevation: 8, marginBottom: -20, zIndex: 5 },
   mainCover: { width: '100%', height: '100%' },
   infoContainer: { padding: 20, paddingTop: 30 },
   title: { textAlign: 'center', fontWeight: '700', marginBottom: 8, fontSize: 22 },
-  
-  // Toast Styles
-  toastContainer: {
-    position: 'absolute', top: 60, left: 20, right: 20, zIndex: 999, alignItems: 'center'
-  },
-  toastContent: {
-    flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 16,
-    borderRadius: 25, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, elevation: 4, gap: 8
-  },
+  toastContainer: { position: 'absolute', top: 60, left: 20, right: 20, zIndex: 999, alignItems: 'center' },
+  toastContent: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 16, borderRadius: 25, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, elevation: 4, gap: 8 },
   toastText: { fontWeight: '600', fontSize: 14 },
-
-  // ... (Các styles còn lại giữ nguyên) ...
   metaRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
   tagsRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginBottom: 20 },
   tagBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
