@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   View, Text, StyleSheet, FlatList, TouchableOpacity, 
   ActivityIndicator, RefreshControl, Alert 
@@ -8,11 +8,10 @@ import { useNavigation } from '@react-navigation/native';
 import { ArrowLeft, Bell, CheckCheck, MailOpen } from 'lucide-react-native';
 
 import { useTheme } from '../contexts/ThemeProvider';
-import { useAuth } from '../contexts/AuthContext'; // Import để lấy User ID cho thông báo ảo
+import { useAuth } from '../contexts/AuthContext'; 
 import { notificationService, NotificationItem } from '../api/notificationService';
 
-
-// Hàm format thời gian
+// Time format helper
 const formatTime = (dateString: string) => {
   const date = new Date(dateString);
   const now = new Date();
@@ -26,21 +25,19 @@ const formatTime = (dateString: string) => {
 
 export function NotificationScreen() {
   const { colors, typography, theme } = useTheme();
-  const navigation = useNavigation();
-  const { user } = useAuth(); // Lấy user hiện tại
+  const navigation = useNavigation<any>(); 
+  const { user } = useAuth(); 
 
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Hàm lấy dữ liệu (Thông báo thực + Kiểm tra quà hàng ngày)
+  // Fetch Data
   const fetchNotifications = async () => {
     try {
-      // Gọi song song: Lấy thông báo từ Server VÀ Kiểm tra trạng thái gói cước
       const [notifRes, subRes] = await Promise.all([
         notificationService.getNotifications(1, 50),
-        // Thêm catch để nếu API status lỗi thì không chặn việc hiện thông báo thường
-       notificationService.getSubscriptionStatus().catch(() => ({ data: null })) 
+        notificationService.getSubscriptionStatus().catch(() => ({ data: null })) 
       ]);
 
       let items: NotificationItem[] = [];
@@ -48,20 +45,19 @@ export function NotificationScreen() {
         items = notifRes.data.items;
       }
 
-      // --- LOGIC TẠO THÔNG BÁO ẢO ---
-      // Nếu user có gói Active VÀ được phép nhận hôm nay -> Chèn thông báo nhắc nhở lên đầu
+      // --- VIRTUAL NOTIFICATION LOGIC ---
       const subData = subRes.data;
-   if (subData && subData.hasActiveSubscription && subData.canClaimToday) {
+      if (subData && subData.hasActiveSubscription && subData.canClaimToday) {
         const virtualNotif: NotificationItem = {
-          notificationId: 'local_daily_claim', // ID giả định đặc biệt
+          notificationId: 'local_daily_claim',
           recipientId: user?.id || 'me',
-          type: 'subscription_reminder', // Type để xử lý click
+          type: 'subscription_reminder',
           title: '🎁 Nhận Kim Cương Hàng Ngày',
           message: `Bạn có ${subData.dailyDias} 💎 chưa nhận hôm nay. Bấm vào đây để nhận ngay!`,
-          isRead: false, // Luôn hiển thị chưa đọc để gây chú ý
+          isRead: false,
           createdAt: new Date().toISOString(),
+          payload: { dailyDias: subData.dailyDias } 
         };
-        // Chèn vào đầu danh sách
         items = [virtualNotif, ...items];
       }
       // -------------------------------
@@ -69,7 +65,7 @@ export function NotificationScreen() {
       setNotifications(items);
 
     } catch (error) {
-      console.error("Lỗi lấy thông báo:", error);
+      console.error("Error fetching notifications:", error);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -86,66 +82,92 @@ export function NotificationScreen() {
   };
 
   const handleReadAll = async () => {
-    // Chỉ đánh dấu các thông báo thật (có ID khác 'local_daily_claim')
     const realNotifications = notifications.filter(n => n.notificationId !== 'local_daily_claim');
     
     if (realNotifications.every(n => n.isRead)) return;
 
     const oldState = [...notifications];
-    // Cập nhật UI ngay lập tức
     setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
 
     try {
       await notificationService.markAllAsRead();
     } catch (error) {
-      console.error("Lỗi đọc tất cả:", error);
+      console.error("Error reading all:", error);
       setNotifications(oldState); 
       Alert.alert("Lỗi", "Không thể thao tác lúc này");
     }
   };
 
+  // --- XỬ LÝ SỰ KIỆN CLICK VÀO THÔNG BÁO ---
   const handlePressNotification = async (item: NotificationItem) => {
-    // 1. Đánh dấu đã đọc (Về mặt hiển thị UI)
+    // Debug log: Kiểm tra xem item bấm vào có dữ liệu gì
+    console.log("🔔 Notification Pressed:", JSON.stringify(item, null, 2));
+
+    // 1. Mark as read (UI)
     if (!item.isRead) {
       setNotifications(prev => 
         prev.map(n => n.notificationId === item.notificationId ? { ...n, isRead: true } : n)
       );
       
-     
       if (item.notificationId !== 'local_daily_claim') {
          notificationService.markAsRead(item.notificationId).catch(err => console.log(err));
       }
     }
 
-    // 2. --- XỬ LÝ NHẬN DIAS ---
-    if (item.type === 'subscription_reminder') {
-        try {
-            await notificationService.claimDailyReward();
-            Alert.alert("Thành công", "Bạn đã nhận được kim cương hàng ngày!");
-            
-            // Sau khi nhận thành công, XÓA thông báo ảo khỏi danh sách để không hiện nữa
-            setNotifications(prev => prev.filter(n => n.notificationId !== 'local_daily_claim'));
-            
-        } catch (error: any) {
-            console.error(error);
-            const message = error?.response?.data?.message || "Có lỗi xảy ra hoặc bạn đã nhận rồi.";
-            Alert.alert("Thông báo", message);
-        }
-    } else {
-        // Xử lý các loại thông báo khác
-        // Ví dụ: Điều hướng đến trang truyện...
-        if (item.message) {
-            Alert.alert("Nội dung", item.message);
-        }
+    const type = item.type || "";
+    // Đảm bảo payload luôn là object (tránh trường hợp null/undefined)
+    const payload = item.payload || {}; 
+
+    // 2. Xử lý điều hướng
+    switch (type) {
+        // A. Nhận thưởng
+        case 'subscription_reminder':
+            try {
+                await notificationService.claimDailyReward();
+                Alert.alert("Thành công", "Đã nhận kim cương hàng ngày!");
+                setNotifications(prev => prev.filter(n => n.notificationId !== 'local_daily_claim'));
+            } catch (error: any) {
+                console.error(error);
+                const message = error?.response?.data?.message || "Có lỗi xảy ra hoặc bạn đã nhận rồi.";
+                Alert.alert("Thông báo", message);
+            }
+            break;
+
+        // B. Chương mới / Truyện mới -> Ưu tiên vào Màn Đọc (Reader)
+        case 'new_chapter':
+            // Nếu có chapterId -> Vào thẳng màn hình đọc
+            if (payload.storyId && payload.chapterId) {
+                navigation.navigate('Reader', { 
+                    storyId: payload.storyId, 
+                    chapterId: payload.chapterId 
+                });
+            } 
+            // Nếu chỉ có storyId -> Vào chi tiết truyện
+            else if (payload.storyId) {
+                navigation.navigate('StoryDetail', { storyId: payload.storyId });
+            } 
+            else {
+                // Fallback nếu payload rỗng
+                Alert.alert("Thông báo", item.message);
+            }
+            break;
+
+        // C. Mặc định
+        default:
+            // Nếu không khớp type nhưng có storyId trong payload thì cứ thử navigate
+            if (payload.storyId) {
+                 navigation.navigate('StoryDetail', { storyId: payload.storyId });
+            } else if (item.message) {
+                 Alert.alert("Nội dung", item.message);
+            }
+            break;
     }
   };
 
   const renderItem = ({ item }: { item: NotificationItem }) => {
     const isRead = item.isRead;
-    // Highlight màu khác cho thông báo nhắc nhận quà
     const isSpecial = item.notificationId === 'local_daily_claim';
     
-    // Nếu là thông báo đặc biệt chưa đọc, dùng màu nền nổi bật hơn chút (hoặc giữ như cũ)
     const backgroundColor = isRead 
         ? colors.card 
         : (isSpecial ? (theme === 'light' ? '#E8F5E9' : '#1B2E21') : (theme === 'light' ? '#E3F2FD' : '#1A2A3A'));

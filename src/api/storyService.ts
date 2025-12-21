@@ -21,6 +21,11 @@ export interface StoryDetail {
   tags: Tag[];
 }
 
+export interface MoodMusic {
+  title: string;
+  storagePath: string;
+}
+
 export interface Chapter {
   chapterId: string;
   chapterNo: number;
@@ -36,7 +41,7 @@ export interface Chapter {
     code: string;
     name: string;
   };
-  moodMusicPaths?: string[];
+ moodMusicPaths?: MoodMusic[];
 }
 
 export interface ChapterListResponse {

@@ -46,6 +46,7 @@ import {
   chapterService,
   ChapterVoiceStatus,
   storyService,
+  MoodMusic, // Đảm bảo bạn đã export interface này bên storyService
 } from "../api/storyService";
 
 // --- IMPORT COMPONENT MOOD ---
@@ -105,20 +106,19 @@ export function ReaderScreen() {
 
   // --- MOOD MUSIC ---
   const [bgMusicSound, setBgMusicSound] = useState<Audio.Sound | null>(null);
-  const [currentMusicIndex, setCurrentMusicIndex] = useState<number | null>(
-    null
-  );
-  const [musicPaths, setMusicPaths] = useState<string[]>([]);
+  const [currentMusicIndex, setCurrentMusicIndex] = useState<number | null>(null);
+  // [UPDATE] Đổi kiểu dữ liệu thành MoodMusic[]
+  const [musicPaths, setMusicPaths] = useState<MoodMusic[]>([]);
   const [currentMoodName, setCurrentMoodName] = useState("");
+  // [UPDATE] State lưu tên bài hát đang phát
+  const [currentMusicTitle, setCurrentMusicTitle] = useState(""); 
 
   // --- VOICE (Audio) ---
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [isPlayingVoice, setIsPlayingVoice] = useState(false);
   const [isPlayerVisible, setIsPlayerVisible] = useState(false);
   const [voicesList, setVoicesList] = useState<ChapterVoiceStatus[]>([]);
-  const [currentVoice, setCurrentVoice] = useState<ChapterVoiceStatus | null>(
-    null
-  );
+  const [currentVoice, setCurrentVoice] = useState<ChapterVoiceStatus | null>(null);
   const [playbackRate, setPlaybackRate] = useState(1.0);
 
   // --- MODALS ---
@@ -187,12 +187,14 @@ export function ReaderScreen() {
     setIsLoading(true);
     setCurrentLang("original");
 
+    // Reset Music State
     if (bgMusicSound) {
       try {
         await bgMusicSound.unloadAsync();
       } catch (e) {}
       setBgMusicSound(null);
       setCurrentMusicIndex(null);
+      setCurrentMusicTitle(""); // Reset tên bài hát
     }
     if (sound) {
       try {
@@ -219,7 +221,7 @@ export function ReaderScreen() {
         setCurrentMoodCode("");
       }
 
-      // 2. Map Music
+      // 2. Map Music ([UPDATE]: Hứng dữ liệu mảng object)
       if (data.moodMusicPaths && Array.isArray(data.moodMusicPaths)) {
         setMusicPaths(data.moodMusicPaths);
       } else {
@@ -266,59 +268,60 @@ export function ReaderScreen() {
     if (chapterId) loadChapter(chapterId);
   }, [chapterId]);
 
-const handleTranslate = async (targetLang: string) => {
-  setIsTranslateVisible(false);
+  const handleTranslate = async (targetLang: string) => {
+    setIsTranslateVisible(false);
 
-  if (targetLang === "original") {
-    setChapterContent(originalContent);
-    setCurrentLang("original");
-    return;
-  }
-
-  const isPremium = await storyService.checkPremiumStatus();
-  if (!isPremium) {
-    Alert.alert(
-      "Premium",
-      "Nâng cấp gói thành viên để sử dụng tính năng Dịch."
-    );
-    return;
-  }
-
-  setIsTranslating(true);
-  try {
-    const res = await storyService.triggerTranslate(chapterId, targetLang);
-    const data = res.data;
-
-    if (data && data.contentUrl) {
-      const fullUrl = data.contentUrl.startsWith("http")
-        ? data.contentUrl
-        : `${R2_BASE_URL}/${data.contentUrl}`;
-
-      const textRes = await fetch(`${fullUrl}?t=${Date.now()}`);
-      const text = await textRes.text();
-
-      setChapterContent(text);
-      setCurrentLang(targetLang);
-    } else {
-      Alert.alert(
-        "Thông báo",
-        "Chưa có bản dịch cho ngôn ngữ này hoặc đang xử lý."
-      );
+    if (targetLang === "original") {
+      setChapterContent(originalContent);
+      setCurrentLang("original");
+      return;
     }
-  } catch (error: any) {
-    if (error.response?.status === 409) {
-      Alert.alert(
-        "Đang xử lý",
-        "Bản dịch đang được tạo hoặc đã tồn tại. Vui lòng thử lại sau."
-      );
-    } else {
-      Alert.alert("Lỗi", "Không thể dịch chương này.");
-    }
-  } finally {
-    setIsTranslating(false);
-  }
-};
 
+    const isPremium = await storyService.checkPremiumStatus();
+    if (!isPremium) {
+      Alert.alert(
+        "Premium",
+        "Nâng cấp gói thành viên để sử dụng tính năng Dịch."
+      );
+      return;
+    }
+
+    setIsTranslating(true);
+    try {
+      const res = await storyService.triggerTranslate(chapterId, targetLang);
+      const data = res.data;
+
+      if (data && data.contentUrl) {
+        const fullUrl = data.contentUrl.startsWith("http")
+          ? data.contentUrl
+          : `${R2_BASE_URL}/${data.contentUrl}`;
+
+        const textRes = await fetch(`${fullUrl}?t=${Date.now()}`);
+        const text = await textRes.text();
+
+        setChapterContent(text);
+        setCurrentLang(targetLang);
+      } else {
+        Alert.alert(
+          "Thông báo",
+          "Chưa có bản dịch cho ngôn ngữ này hoặc đang xử lý."
+        );
+      }
+    } catch (error: any) {
+      if (error.response?.status === 409) {
+        Alert.alert(
+          "Đang xử lý",
+          "Bản dịch đang được tạo hoặc đã tồn tại. Vui lòng thử lại sau."
+        );
+      } else {
+        Alert.alert("Lỗi", "Không thể dịch chương này.");
+      }
+    } finally {
+      setIsTranslating(false);
+    }
+  };
+
+  // [UPDATE] Hàm phát nhạc mới, xử lý object MoodMusic
   const playTrack = async (index: number) => {
     const isPremium = await storyService.checkPremiumStatus();
     if (!isPremium) {
@@ -332,12 +335,18 @@ const handleTranslate = async (targetLang: string) => {
         await bgMusicSound.unloadAsync();
         setBgMusicSound(null);
         setCurrentMusicIndex(null);
+        setCurrentMusicTitle(""); // Xóa tên bài hát
         return;
       }
       if (bgMusicSound) {
         await bgMusicSound.unloadAsync();
       }
-      const rawPath = musicPaths[index];
+
+      // Lấy object nhạc từ mảng
+      const musicItem = musicPaths[index];
+      const rawPath = musicItem.storagePath; // Lấy path từ object
+      const title = musicItem.title; // Lấy tên bài hát
+
       const fullUrl = rawPath.startsWith("http")
         ? rawPath
         : `${R2_BASE_URL}/${rawPath}`;
@@ -348,7 +357,9 @@ const handleTranslate = async (targetLang: string) => {
       );
       setBgMusicSound(newSound);
       setCurrentMusicIndex(index);
+      setCurrentMusicTitle(title); // Set tên bài hát
     } catch (error) {
+      console.log("Play music error:", error);
       Alert.alert("Lỗi", "Không thể phát nhạc nền.");
     }
   };
@@ -485,6 +496,7 @@ const handleTranslate = async (targetLang: string) => {
         barStyle={themeId === "dark" ? "light-content" : "dark-content"}
       />
 
+      {/* HEADER */}
       <View
         style={[
           styles.header,
@@ -500,20 +512,44 @@ const handleTranslate = async (targetLang: string) => {
         >
           <ArrowLeft size={24} color={currentTheme.text} />
         </TouchableOpacity>
-        {controlsVisible && currentMoodName ? (
-          <View
-            style={{
-              backgroundColor: "rgba(0,0,0,0.1)",
-              paddingHorizontal: 10,
-              paddingVertical: 4,
-              borderRadius: 12,
-            }}
-          >
-            <Text style={{ color: currentTheme.text, fontSize: 12 }}>
-              Mood: {currentMoodName}
-            </Text>
-          </View>
-        ) : null}
+        
+        {/* [UPDATE] HIỂN THỊ MOOD + TÊN NHẠC */}
+        <View style={{flexDirection: 'row', gap: 8}}>
+            {controlsVisible && currentMoodName ? (
+            <View
+                style={{
+                backgroundColor: "rgba(0,0,0,0.1)",
+                paddingHorizontal: 10,
+                paddingVertical: 4,
+                borderRadius: 12,
+                }}
+            >
+                <Text style={{ color: currentTheme.text, fontSize: 12 }}>
+                Mood: {currentMoodName}
+                </Text>
+            </View>
+            ) : null}
+
+            {controlsVisible && currentMusicTitle ? (
+             <View
+                style={{
+                backgroundColor: colors.primary + "20", // Màu nền nhạt
+                paddingHorizontal: 10,
+                paddingVertical: 4,
+                borderRadius: 12,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 4
+                }}
+            >
+                <Music size={12} color={colors.primary} />
+                <Text style={{ color: colors.primary, fontSize: 12, fontWeight: 'bold' }} numberOfLines={1}>
+                 {currentMusicTitle}
+                </Text>
+            </View>
+            ) : null}
+        </View>
+
         <TouchableOpacity
           onPress={() => setIsReportVisible(true)}
           style={styles.iconBtn}
@@ -641,6 +677,7 @@ const handleTranslate = async (targetLang: string) => {
         </View>
       )}
 
+      {/* MENU MODAL */}
       <Modal visible={isMenuVisible} transparent animationType="slide">
         <TouchableWithoutFeedback onPress={() => setIsMenuVisible(false)}>
           <View style={styles.modalOverlay}>
@@ -681,9 +718,10 @@ const handleTranslate = async (targetLang: string) => {
                     </Text>
                   </View>
 
+                  {/* [UPDATE] Render list nhạc với Tên bài hát */}
                   {musicPaths.length > 0 ? (
                     <View style={{ marginTop: 4 }}>
-                      {musicPaths.map((path, index) => {
+                      {musicPaths.map((musicItem, index) => {
                         const isPlayingThis = currentMusicIndex === index;
                         return (
                           <TouchableOpacity
@@ -722,9 +760,12 @@ const handleTranslate = async (targetLang: string) => {
                                   ? colors.primary
                                   : currentTheme.text,
                                 fontWeight: isPlayingThis ? "600" : "400",
+                                flex: 1
                               }}
+                              numberOfLines={1}
                             >
-                              Bài {index + 1}
+                              {/* Hiển thị tên bài hát */}
+                              {musicItem.title || `Bài ${index + 1}`}
                             </Text>
                             {isPlayingThis && (
                               <View style={{ marginLeft: "auto" }}>
@@ -1042,20 +1083,14 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   menuTitle: { fontSize: 18, fontWeight: "bold" },
-  menuSection: { marginBottom: 16 },
-  sectionTitle: { fontSize: 14, fontWeight: "600" },
+  menuSection: { marginTop: 10 },
+  sectionTitle: { fontSize: 14, fontWeight: "600", marginBottom: 8 },
   menuItem: {
+    paddingVertical: 16,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 16,
-    borderBottomWidth: 0.5,
-    borderBottomColor: "rgba(150,150,150,0.2)",
   },
   menuText: { fontSize: 16, fontWeight: "500" },
-  divider: {
-    height: 1,
-    backgroundColor: "rgba(150,150,150,0.1)",
-    marginVertical: 8,
-  },
+  divider: { height: 1, backgroundColor: "#E5E5E5", marginVertical: 8 },
 });

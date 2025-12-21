@@ -2,6 +2,7 @@ import apiClient from './apiClient';
 
 // --- 1. Định nghĩa Type cho Profile ---
 export interface UserProfile {
+  // Các trường gốc từ API GET /api/Profile
   accountId: string;
   username: string;
   email: string;
@@ -9,32 +10,25 @@ export interface UserProfile {
   bio: string | null;
   gender: 'unspecified' | 'M' | 'F';
   birthday: string | null;
-  dias: number; // Field tự gộp từ ví
+  strike: number;
+  isAuthor: boolean;
+
+  // --- CÁC TRƯỜNG MAPPING (Để dùng trong UI) ---
+  id: string;            // Sẽ map từ accountId
+  dateOfBirth: string | null; // Sẽ map từ birthday
+  dias: number;          // Lấy từ API ví
+  roles: string[];       // Sẽ tự tạo nếu API profile chưa trả về
+  subscription: any;
 }
 
-interface UpdateProfileData {
+// Interface cho hàm Update (PUT)
+export interface UpdateProfileData {
   bio?: string;
   gender?: 'unspecified' | 'M' | 'F';
-  birthday?: string | null;
+  birthday?: string | null; // Định dạng YYYY-MM-DD
 }
 
-// --- 2. Định nghĩa Type cho Followed Authors (MỚI THÊM) ---
-export interface FollowedAuthorItem {
-  authorId: string;
-  username: string;
-  avatarUrl: string | null;
-  notificationsEnabled: boolean;
-  followedAt: string;
-}
-
-export interface FollowedListResponse {
-  items: FollowedAuthorItem[];
-  total: number;
-  page: number;
-  pageSize: number;
-}
-
-// --- 3. Service ---
+// --- 2. Service ---
 export const profileService = {
   getProfile: async () => {
     try {
@@ -46,15 +40,26 @@ export const profileService = {
       const walletRes = await apiClient.get<any>(`/api/Profile/wallet?t=${new Date().getTime()}`)
         .catch(err => {
             console.log("Lỗi lấy ví:", err);
-            return { data: { diaBalance: 0, isAuthor: false } };
+            return { data: { diaBalance: 0, isAuthor: false, subscription: null } };
         });
 
-      // 3. Gộp dữ liệu
+      const profileData = profileRes.data;
+      const walletData = walletRes.data;
+
+      // 3. Gộp dữ liệu & Mapping các trường bị thiếu cho UI
       const mergedData: UserProfile = {
-        ...profileRes.data,
-        dias: walletRes.data.diaBalance || 0,
-        isAuthor: walletRes.data.isAuthor || false,
-        subscription: walletRes.data.subscription || null
+        ...profileData,
+        
+        // Mapping ID và Birthday cho khớp với code cũ
+        id: profileData.accountId,
+        dateOfBirth: profileData.birthday,
+        
+        // Roles (Hiện tại API Profile chưa trả về roles, ta có thể lấy từ Token decode hoặc mặc định)
+        roles: ['reader', ...(profileData.isAuthor ? ['author'] : [])], 
+
+        // Dữ liệu từ ví
+        dias: walletData.diaBalance || 0,
+        subscription: walletData.subscription || null
       };
 
       return { data: mergedData };
@@ -64,29 +69,27 @@ export const profileService = {
     }
   },
 
-  updateProfile: (data: any) => apiClient.put('/api/Profile', data),
+  /**
+   * PUT /api/Profile
+   * Cập nhật thông tin cá nhân
+   */
+  updateProfile: (data: UpdateProfileData) => {
+    return apiClient.put('/api/Profile', data);
+  },
   
   uploadAvatar: (formData: FormData) => apiClient.post<{ avatarUrl: string }>('/api/Profile/avatar', formData),
 
-  
   requestEmailChange: (data: any) => apiClient.post('/api/Profile/email/otp', data),
   
   verifyEmailChange: (data: any) => apiClient.post('/api/Profile/email/verify', data),
 
-  /**
-   * GET /api/AuthorFollow/mine
-   * Lấy danh sách tác giả đang theo dõi (MỚI THÊM)
-   */
+  // --- AUTHOR FOLLOW ---
   getFollowedAuthors: (page = 1, pageSize = 20) => {
-    return apiClient.get<FollowedListResponse>('/api/AuthorFollow/mine', {
+    return apiClient.get('/api/AuthorFollow/mine', {
       params: { page, pageSize }
     });
   },
   
-  /**
-   * DELETE /api/AuthorFollow/{authorId}
-   * Hủy theo dõi tác giả (Tiện ích bổ sung nếu cần dùng trong modal list)
-   */
   unfollowAuthor: (authorId: string) => {
     return apiClient.delete(`/api/AuthorFollow/${authorId}`);
   }
