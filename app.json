@@ -14,14 +14,14 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.pthy.toranovelapp" 
+      "bundleIdentifier": "com.pthy.toranovelapp"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.pthy.toranovelapp", 
+      "package": "com.pthy.toranovelapp",
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
@@ -31,16 +31,15 @@
     "plugins": [
       "expo-font"
     ],
-    "updates": {
-      "url": "https://u.expo.dev/3a4fd002-be2d-4bd6-97eb-211c0345958b"
-    },
+    "updates": {},
     "runtimeVersion": {
       "policy": "appVersion"
     },
     "extra": {
       "eas": {
-        "projectId": "3a4fd002-be2d-4bd6-97eb-211c0345958b"
+        "projectId": "4508ac7a-7451-4a36-a06d-603fbc1fd146"
       }
-    }
+    },
+    "owner": "pthy"
   }
 }
