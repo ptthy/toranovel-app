@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
-import { Lock, Zap, X, CheckCircle } from 'lucide-react-native'; // Thêm icon CheckCircle
+import { Lock, Zap, X, CheckCircle, Gem } from 'lucide-react-native'; 
 import { useNavigation } from '@react-navigation/native';
 
 import { useTheme } from '../../contexts/ThemeProvider';
@@ -22,13 +22,12 @@ interface ChapterUnlockModalProps {
 
 export function ChapterUnlockModal({ visible, onClose, chapter, onSuccess }: ChapterUnlockModalProps) {
   const { colors, typography } = useTheme();
-  const { fetchUserProfile } = useAuth(); // Để update lại số dư toàn app
+  const { fetchUserProfile } = useAuth();
   const navigation = useNavigation<any>();
   
   const [isLoading, setIsLoading] = useState(false);
   const [userBalance, setUserBalance] = useState<number>(0);
 
-  // Mỗi khi mở modal -> Lấy số dư mới nhất
   useEffect(() => {
     if (visible) {
       loadBalance();
@@ -48,13 +47,9 @@ export function ChapterUnlockModal({ visible, onClose, chapter, onSuccess }: Cha
     if (!chapter) return;
     setIsLoading(true);
     try {
-      // 1. Gọi API mua chương
       await chapterService.buyChapter(chapter.chapterId);
-      
-      // 2. Mua thành công -> Cập nhật lại số dư global & local
       await fetchUserProfile();
       
-      // 3. Thông báo và mở truyện
       Alert.alert("Thành công", "Mở khóa chương thành công!", [
         { text: "Đọc ngay", onPress: onSuccess }
       ]);
@@ -62,18 +57,14 @@ export function ChapterUnlockModal({ visible, onClose, chapter, onSuccess }: Cha
     } catch (error: any) {
       console.log("Status code mua chương:", error.response?.status);
 
-      // --- [FIX QUAN TRỌNG] Xử lý lỗi 409 (Đã mua rồi) ---
       if (error.response && error.response.status === 409) {
-          // Vẫn gọi cập nhật ví để đồng bộ dữ liệu
           fetchUserProfile();
-          
           Alert.alert("Đã sở hữu", "Bạn đã mua chương này rồi. Hệ thống sẽ mở ngay bây giờ.", [
-              { text: "Vào đọc ngay", onPress: onSuccess } // Gọi onSuccess để đóng modal và vào truyện
+              { text: "Vào đọc ngay", onPress: onSuccess }
           ]);
           return;
       }
 
-      // Các lỗi khác
       const msg = error.response?.data?.message || "Số dư không đủ hoặc lỗi hệ thống.";
       Alert.alert("Thất bại", msg);
     } finally {
@@ -83,7 +74,6 @@ export function ChapterUnlockModal({ visible, onClose, chapter, onSuccess }: Cha
 
   const handleNavigateTopUp = () => {
       onClose();
-      // Điều hướng đến màn hình nạp tiền (Kiểm tra lại tên route của bạn, ví dụ 'TopUp' hoặc 'Wallet')
       navigation.navigate('TopUp'); 
   };
 
@@ -109,19 +99,25 @@ export function ChapterUnlockModal({ visible, onClose, chapter, onSuccess }: Cha
             Chương Trả Phí
           </Text>
 
-          <Text style={{ color: colors.mutedForeground, textAlign: 'center', marginBottom: 20, paddingHorizontal: 10 }}>
-            Nội dung chương <Text style={{fontWeight: 'bold'}}>#{chapter.chapterNo}</Text> được khóa.
-            Sử dụng 💎 để mở khóa nhé!
-          </Text>
+          {/* Text mô tả */}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginBottom: 20, paddingHorizontal: 10 }}>
+            <Text style={{ color: colors.mutedForeground, textAlign: 'center' }}>
+              Nội dung chương <Text style={{fontWeight: 'bold'}}>#{chapter.chapterNo}</Text> được khóa. Sử dụng 
+            </Text>
+            <View style={{ marginHorizontal: 4, transform: [{translateY: 2}] }}>
+                <Gem size={14} color="#4b98ff" fill="#4b98ff" />
+            </View>
+            <Text style={{ color: colors.mutedForeground, textAlign: 'center' }}>để mở khóa nhé!</Text>
+          </View>
 
           {/* Box Số dư */}
           <View style={styles.balanceBox}>
             <Text style={{ color: '#666', fontSize: 12 }}>Số dư hiện tại</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
                <Text style={{ fontSize: 18, fontWeight: 'bold', color: isNotEnoughMoney ? '#EF4444' : '#007AFF' }}>
                  {userBalance.toLocaleString('en-US')}
                </Text>
-               <Text style={{ fontSize: 14, color: isNotEnoughMoney ? '#EF4444' : '#007AFF' }}>💎</Text>
+               <Gem size={16} color="#4b98ff" fill="#4b98ff" />
             </View>
           </View>
 
@@ -137,20 +133,31 @@ export function ChapterUnlockModal({ visible, onClose, chapter, onSuccess }: Cha
             {isLoading ? (
                <ActivityIndicator color="#fff" />
             ) : (
-               <>
+               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                  {isNotEnoughMoney ? <Lock size={18} color="#fff" /> : <CheckCircle size={18} color="#fff" />}
                  <Text style={styles.buyText}>
-                   {isNotEnoughMoney ? "Không đủ số dư" : `Mở khóa ngay (${price} 💎)`}
+                   {isNotEnoughMoney ? "Không đủ số dư" : `Mở khóa ngay`}
                  </Text>
-               </>
+                 {!isNotEnoughMoney && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2, backgroundColor: '#fff', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12 }}>
+                       <Text style={{ color: '#F97316', fontWeight: 'bold', fontSize: 12 }}>{price}</Text>
+                       {/* Cập nhật màu Gem tại đây: Màu xanh #4b98ff */}
+                       <Gem size={12} color="#4b98ff" fill="#4b98ff" />
+                    </View>
+                 )}
+               </View>
             )}
           </TouchableOpacity>
 
-          {/* Nút Nạp tiền (Chỉ hiện khi không đủ tiền) */}
+          {/* Nút Nạp tiền */}
           {isNotEnoughMoney && (
               <TouchableOpacity style={styles.topupButton} onPress={handleNavigateTopUp}>
                   <Zap size={18} color="#10B981" />
-                  <Text style={{ color: '#10B981', fontWeight: 'bold' }}>Nạp thêm 💎 ngay</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Text style={{ color: '#10B981', fontWeight: 'bold' }}>Nạp thêm</Text>
+                    <Gem size={14} color="#4b98ff" fill="#4b98ff" />
+                    <Text style={{ color: '#10B981', fontWeight: 'bold' }}>ngay</Text>
+                  </View>
               </TouchableOpacity>
           )}
 
@@ -174,8 +181,8 @@ const styles = StyleSheet.create({
     paddingVertical: 10, paddingHorizontal: 24, alignItems: 'center', marginBottom: 20 
   },
   buyButton: { 
-    backgroundColor: '#F97316', width: '100%', paddingVertical: 14, borderRadius: 12,
-    flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, marginBottom: 12
+    width: '100%', paddingVertical: 14, borderRadius: 12,
+    justifyContent: 'center', alignItems: 'center', marginBottom: 12
   },
   buyText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
   topupButton: { 

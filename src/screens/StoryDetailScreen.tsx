@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { useTheme } from '../contexts/ThemeProvider';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
-import { ArrowLeft, List, User, Lock, LockOpen, Star, Flag, Heart, CheckCircle, XCircle } from 'lucide-react-native';
+import { ArrowLeft, List, User, Lock, LockOpen, Star, Flag, Heart, CheckCircle, XCircle, Gem } from 'lucide-react-native'; // Thêm Gem
 import { LinearGradient } from 'expo-linear-gradient';
 
 // --- IMPORTS ---
@@ -219,9 +219,13 @@ export function StoryDetailScreen() {
         <View style={{ marginLeft: 10, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           {isLocked ? (
              <>
-               <Text style={{ color: colors.mutedForeground, fontSize: 12, fontWeight: '600' }}>
-                 {chapter.priceDias ?? 0} 💎
-               </Text>
+               {/* SỬA: Thay emoji 💎 bằng icon Gem */}
+               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                   <Text style={{ color: colors.mutedForeground, fontSize: 12, fontWeight: '600' }}>
+                     {chapter.priceDias ?? 0}
+                   </Text>
+                   <Gem size={10} color="#4b98ff" fill="#4b98ff" />
+               </View>
                <Lock size={16} color="#DC3545" />
              </>
           ) : (

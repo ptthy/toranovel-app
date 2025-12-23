@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, FlatList, ActivityIndicator, Alert } from 'react-native';
-import { X, Play, CheckCircle, Circle, ShoppingCart, Volume2, MicOff } from 'lucide-react-native';
+import { X, Play, CheckCircle, Circle, ShoppingCart, Volume2, MicOff, Gem } from 'lucide-react-native'; // Thêm Gem
 import { useTheme } from '../../contexts/ThemeProvider';
 import { chapterService, ChapterVoiceStatus } from '../../api/storyService';
 
@@ -130,9 +130,13 @@ export function VoicePurchaseModal({
         </View>
         <View style={styles.infoBox}>
           <Text style={[typography.h4, { color: colors.foreground }]}>{item.voiceName}</Text>
-          <Text style={{ color: colors.accent, fontWeight: 'bold', fontSize: 13 }}>
-            {item.priceDias} 💎
-          </Text>
+          {/* SỬA: Thay emoji 💎 bằng Icon Gem */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+             <Text style={{ color: colors.accent, fontWeight: 'bold', fontSize: 13 }}>
+                {item.priceDias}
+             </Text>
+             <Gem size={12} color="#579fff" fill="#579fff" />
+          </View>
         </View>
         
         {isSelected ? (
@@ -179,7 +183,11 @@ export function VoicePurchaseModal({
             <View style={[styles.footer, { borderTopColor: colors.border, backgroundColor: colors.card }]}>
               <View>
                 <Text style={{ color: colors.mutedForeground }}>Tổng thanh toán:</Text>
-                <Text style={[typography.h3, { color: colors.primary }]}>{totalPrice} Dias</Text>
+                {/* SỬA: Thay chữ Dias bằng Icon Gem */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                   <Text style={[typography.h3, { color: colors.primary }]}>{totalPrice}</Text>
+                   <Gem size={18} color="#4b98ff" fill="#4b98ff" />
+                </View>
               </View>
               <TouchableOpacity 
                 style={[styles.buyButton, { backgroundColor: colors.primary }]}

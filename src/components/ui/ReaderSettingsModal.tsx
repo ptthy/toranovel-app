@@ -1,8 +1,13 @@
 import React from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView } from 'react-native';
-import { X, Type, Palette, Volume2, Check } from 'lucide-react-native';
+import { X, Type, Palette, Volume2, Check, Gem } from 'lucide-react-native'; // Thêm Gem
 import { useTheme } from '../../contexts/ThemeProvider';
 import { ChapterVoiceStatus } from '../../api/storyService';
+
+// --- COMPONENT GEM THEO YÊU CẦU ---
+const InlineGem = () => (
+  <Gem size={16} color="#4b98ff" fill="#4b98ff" style={{ marginBottom: -3 }} />
+);
 
 // Định nghĩa lại type cho Theme
 export const READER_THEMES = {
@@ -31,7 +36,6 @@ interface ReaderSettingsModalProps {
   fontId: string;
   setFontId: (id: string) => void;
   
-  // --- THÊM PHẦN VOICE ---
   availableVoices: ChapterVoiceStatus[]; 
   currentVoiceId: string | null;
   onSelectVoice: (voice: ChapterVoiceStatus) => void;
@@ -95,7 +99,7 @@ export function ReaderSettingsModal({
               </View>
             </View>
 
-            {/* --- PHẦN 3: FONT CHỮ (Đã thêm Times & Poppins) --- */}
+            {/* --- PHẦN 3: FONT CHỮ --- */}
             <View style={styles.section}>
               <View style={styles.headerRow}>
                 <Type size={18} color={colors.foreground} />
@@ -154,7 +158,10 @@ export function ReaderSettingsModal({
                             {voice.voiceName}
                           </Text>
                           {!isOwned && voice.hasAudio && (
-                            <Text style={{ fontSize: 10, color: colors.accent }}>{voice.priceDias} 💎</Text>
+                            // Thay thế text 💎 bằng component InlineGem
+                            <Text style={{ fontSize: 10, color: colors.accent }}>
+                                {voice.priceDias} <InlineGem />
+                            </Text>
                           )}
                         </View>
                         {isSelected && <Volume2 size={16} color={colors.primary} />}

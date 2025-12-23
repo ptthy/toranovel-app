@@ -5,11 +5,16 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { ArrowLeft, Bell, CheckCheck, MailOpen } from 'lucide-react-native';
+import { ArrowLeft, Bell, CheckCheck, MailOpen, Gem } from 'lucide-react-native'; // Thêm Gem
 
 import { useTheme } from '../contexts/ThemeProvider';
 import { useAuth } from '../contexts/AuthContext'; 
 import { notificationService, NotificationItem } from '../api/notificationService';
+
+// --- COMPONENT GEM THEO YÊU CẦU ---
+const InlineGem = () => (
+  <Gem size={16} color="#2563EB" fill="#2563EB" style={{ marginBottom: -3 }} />
+);
 
 // Time format helper
 const formatTime = (dateString: string) => {
@@ -53,6 +58,7 @@ export function NotificationScreen() {
           recipientId: user?.id || 'me',
           type: 'subscription_reminder',
           title: '🎁 Nhận Kim Cương Hàng Ngày',
+          // Giữ nguyên emoji trong data string để tránh lỗi type, sẽ replace khi render
           message: `Bạn có ${subData.dailyDias} 💎 chưa nhận hôm nay. Bấm vào đây để nhận ngay!`,
           isRead: false,
           createdAt: new Date().toISOString(),
@@ -100,7 +106,6 @@ export function NotificationScreen() {
 
   // --- XỬ LÝ SỰ KIỆN CLICK VÀO THÔNG BÁO ---
   const handlePressNotification = async (item: NotificationItem) => {
-    // Debug log: Kiểm tra xem item bấm vào có dữ liệu gì
     console.log("🔔 Notification Pressed:", JSON.stringify(item, null, 2));
 
     // 1. Mark as read (UI)
@@ -115,7 +120,6 @@ export function NotificationScreen() {
     }
 
     const type = item.type || "";
-    // Đảm bảo payload luôn là object (tránh trường hợp null/undefined)
     const payload = item.payload || {}; 
 
     // 2. Xử lý điều hướng
@@ -133,28 +137,24 @@ export function NotificationScreen() {
             }
             break;
 
-        // B. Chương mới / Truyện mới -> Ưu tiên vào Màn Đọc (Reader)
+        // B. Chương mới / Truyện mới
         case 'new_chapter':
-            // Nếu có chapterId -> Vào thẳng màn hình đọc
             if (payload.storyId && payload.chapterId) {
                 navigation.navigate('Reader', { 
                     storyId: payload.storyId, 
                     chapterId: payload.chapterId 
                 });
             } 
-            // Nếu chỉ có storyId -> Vào chi tiết truyện
             else if (payload.storyId) {
                 navigation.navigate('StoryDetail', { storyId: payload.storyId });
             } 
             else {
-                // Fallback nếu payload rỗng
                 Alert.alert("Thông báo", item.message);
             }
             break;
 
         // C. Mặc định
         default:
-            // Nếu không khớp type nhưng có storyId trong payload thì cứ thử navigate
             if (payload.storyId) {
                  navigation.navigate('StoryDetail', { storyId: payload.storyId });
             } else if (item.message) {
@@ -171,6 +171,17 @@ export function NotificationScreen() {
     const backgroundColor = isRead 
         ? colors.card 
         : (isSpecial ? (theme === 'light' ? '#E8F5E9' : '#1B2E21') : (theme === 'light' ? '#E3F2FD' : '#1A2A3A'));
+
+    // Logic replace emoji bằng Component InlineGem
+    const renderMessage = (msg: string) => {
+        if (!msg.includes('💎')) return msg;
+        return msg.split('💎').map((part, index, arr) => (
+            <React.Fragment key={index}>
+                {part}
+                {index < arr.length - 1 && <InlineGem />}
+            </React.Fragment>
+        ));
+    };
 
     return (
       <TouchableOpacity 
@@ -205,7 +216,7 @@ export function NotificationScreen() {
             numberOfLines={2} 
             style={[typography.p, { color: isRead ? colors.mutedForeground : colors.foreground, fontSize: 13, marginTop: 4 }]}
           >
-            {item.message}
+            {renderMessage(item.message)}
           </Text>
         </View>
 

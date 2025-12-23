@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, FlatList, ActivityIndicator, StatusBar } from '
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeProvider';
 import apiClient from '../api/apiClient';
-import { Volume2, Calendar, BookOpen, LockOpen } from 'lucide-react-native';
+import { Volume2, Calendar, BookOpen, LockOpen, Gem } from 'lucide-react-native'; // Thêm Gem
 
 // 1. Interface hiển thị lên UI
 interface TransactionItem {
@@ -26,7 +26,6 @@ export function TransactionHistoryScreen() {
   }, []);
 
   // --- API 1: Lấy lịch sử mua CHAPTER ---
-  // GET /api/ChapterPurchase/chapter-history
   const getChapterHistory = async (): Promise<TransactionItem[]> => {
     try {
       const res = await apiClient.get('/api/ChapterPurchase/chapter-history');
@@ -36,9 +35,8 @@ export function TransactionHistoryScreen() {
 
       return data.map((item: any) => ({
         id: item.purchaseId,
-        type: 'chapter', // Đánh dấu là giao dịch mua chương
+        type: 'chapter',
         storyTitle: item.storyTitle || "Chưa cập nhật tên truyện",
-        // Nếu không có chapterTitle thì dùng chapterNo
         chapterTitle: item.chapterTitle || `Chương ${item.chapterNo}`, 
         itemName: "Mở khóa nội dung chương",
         priceDias: item.priceDias,
@@ -51,7 +49,6 @@ export function TransactionHistoryScreen() {
   };
 
   // --- API 2: Lấy TOÀN BỘ lịch sử mua VOICE ---
-  // GET /api/ChapterPurchase/voice-history
   const getAllVoiceHistory = async (): Promise<TransactionItem[]> => {
     try {
       const res = await apiClient.get('/api/ChapterPurchase/voice-history');
@@ -61,7 +58,6 @@ export function TransactionHistoryScreen() {
 
       const transactions: TransactionItem[] = [];
 
-      // Cấu trúc: List Story -> List Chapters -> List Voices
       data.forEach((story: any) => {
         if (story.chapters) {
           story.chapters.forEach((chapter: any) => {
@@ -69,7 +65,7 @@ export function TransactionHistoryScreen() {
               chapter.voices.forEach((voice: any) => {
                 transactions.push({
                   id: voice.purchaseVoiceId,
-                  type: 'voice', // Đánh dấu là giao dịch mua giọng đọc
+                  type: 'voice',
                   storyTitle: story.storyTitle || "Chưa cập nhật",
                   chapterTitle: chapter.chapterTitle || `Chương ${chapter.chapterNo}`,
                   itemName: `Giọng đọc: ${voice.voiceName}`,
@@ -88,45 +84,16 @@ export function TransactionHistoryScreen() {
     }
   };
 
-  // --- API 3: Lấy lịch sử mua VOICE của 1 CHAPTER CỤ THỂ ---
-  // GET /api/ChapterPurchase/{chapterId}/voice-history
-  // Hàm này hữu ích khi bạn đang ở màn hình đọc truyện và muốn kiểm tra lịch sử của chương đó
-  const getChapterVoiceHistory = async (chapterId: string): Promise<TransactionItem[]> => {
-    try {
-      const res = await apiClient.get(`/api/ChapterPurchase/${chapterId}/voice-history`);
-      const data = res.data;
-
-      if (!Array.isArray(data)) return [];
-
-      return data.map((voice: any) => ({
-        id: voice.purchaseVoiceId,
-        type: 'voice',
-        storyTitle: "Chi tiết chương", // API này không trả về StoryTitle, có thể cần truyền vào từ ngoài
-        chapterTitle: "Hiện tại",      // Tương tự
-        itemName: `Giọng đọc: ${voice.voiceName}`,
-        priceDias: voice.priceDias,
-        purchasedAt: voice.purchasedAt
-      }));
-    } catch (error) {
-      console.error(`Error fetching voice history for chapter ${chapterId}:`, error);
-      return [];
-    }
-  };
-
-  // --- HÀM TỔNG HỢP DỮ LIỆU CHO MÀN HÌNH CHÍNH ---
+  // --- HÀM TỔNG HỢP DỮ LIỆU ---
   const loadGlobalHistory = async () => {
     setLoading(true);
     try {
-      // Gọi song song API 1 và API 2 để lấy tất cả lịch sử
       const [chapters, voices] = await Promise.all([
         getChapterHistory(),
         getAllVoiceHistory()
       ]);
 
-      // Gộp 2 mảng lại
       const combined = [...chapters, ...voices];
-
-      // Sắp xếp theo ngày giảm dần (mới nhất lên đầu)
       combined.sort((a, b) => new Date(b.purchasedAt).getTime() - new Date(a.purchasedAt).getTime());
 
       setHistory(combined);
@@ -140,7 +107,6 @@ export function TransactionHistoryScreen() {
   const renderItem = ({ item }: { item: TransactionItem }) => {
     const isVoice = item.type === 'voice';
     const IconComponent = isVoice ? Volume2 : LockOpen;
-    // Voice màu Primary, Chapter màu cam/vàng
     const itemColor = isVoice ? colors.primary : '#F39C12'; 
 
     return (
@@ -153,7 +119,11 @@ export function TransactionHistoryScreen() {
            >
              {item.storyTitle}
            </Text>
-           <Text style={{ color: colors.primary, fontWeight: 'bold' }}>-{item.priceDias} 💎</Text>
+           {/* THAY EMOJI BẰNG ICON GEM */}
+           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+             <Text style={{ color: colors.primary, fontWeight: 'bold' }}>-{item.priceDias}</Text>
+             <Gem size={14} color="#4b98ff" fill="#4b98ff" />
+           </View>
         </View>
         
         {/* Dòng 2: Tên chương */}
@@ -198,7 +168,7 @@ export function TransactionHistoryScreen() {
       ) : (
         <FlatList
           data={history}
-          keyExtractor={(item, index) => item.id + index} // Thêm index để tránh trùng key nếu API lỗi trả về ID trùng
+          keyExtractor={(item, index) => item.id + index}
           renderItem={renderItem}
           contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
           ListEmptyComponent={

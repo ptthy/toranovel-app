@@ -12,55 +12,68 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "../contexts/ThemeProvider";
-import { ArrowLeft, Crown, Zap, Globe, Mic } from "lucide-react-native";
+// 1. Đảm bảo đã import Gem
+import {
+  ArrowLeft,
+  Crown,
+  Zap,
+  Globe,
+  Mic,
+  Gift,
+  Gem,
+} from "lucide-react-native";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import MaterialIcons from "@react-native-vector-icons/material-icons";
 import { useAuth } from "../contexts/AuthContext";
-// Import service và interface
-import { paymentService, PricingPackage, SubscriptionPlan } from "../api/paymentService";
+import {
+  paymentService,
+  PricingPackage,
+  SubscriptionPlan,
+} from "../api/paymentService";
 
+// Helper component: Icon Gem nhỏ dùng trong dòng text
+// Size 16 để vừa với dòng chữ, marginBottom -3 để căn dòng đẹp hơn
+const InlineGem = () => (
+  <Gem size={16} color="#4b98ff" fill="#4b98ff" style={{ marginBottom: -3 }} />
+);
 
 const PREMIUM_FEATURES_UI = [
-  { icon: Zap, text: "Nhận Dias mỗi ngày" }, 
+  // text để trống hoặc placeholder vì ta sẽ render custom ở dưới
+  { icon: Gift, id: "gift" }, 
+  { icon: Zap, id: "daily" },
   { icon: Crown, text: "Đổi nhạc nền, hiệu ứng đọc" },
-  { icon: Globe, text: "Dịch truyện 4 ngôn ngữ" },
-  { icon: Mic, text: "Mở khóa 2 giọng đọc AI cao cấp" },
+  { icon: Globe, text: "Dịch truyện sang đa ngôn ngữ" },
 ];
 
 export function TopUpScreen() {
   const { colors, typography } = useTheme();
   const navigation = useNavigation();
   const { user, fetchUserProfile } = useAuth();
-  
+
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-
-  // State lưu dữ liệu từ API
   const [subscriptionData, setSubscriptionData] = useState<SubscriptionPlan | null>(null);
   const [singlePackages, setSinglePackages] = useState<PricingPackage[]>([]);
 
-  // 1. Lấy thông tin Gói Tháng
+  // ... (Giữ nguyên các hàm fetch API: fetchSubscriptionPlan, fetchPricingPackages...)
   const fetchSubscriptionPlan = async () => {
     try {
       const response = await paymentService.getSubscriptionPlans();
       if (response.data && response.data.length > 0) {
-        
-         const premiumPlan = response.data.find(p => p.planCode === 'premium_month') || response.data[0];
-         setSubscriptionData(premiumPlan);
+        const premiumPlan = response.data.find((p) => p.planCode === "premium_month") || response.data[0];
+        setSubscriptionData(premiumPlan);
       }
     } catch (error) {
       console.error("Lỗi lấy gói tháng:", error);
     }
   };
 
-  // 2. Lấy danh sách Gói Lẻ (Pricing)
   const fetchPricingPackages = async () => {
     try {
       const response = await paymentService.getPricing();
       if (response.data) {
-        // Lọc gói active và sắp xếp theo giá tăng dần
-        const activePkgs = response.data.filter(p => p.isActive);
+        const activePkgs = response.data.filter((p) => p.isActive);
         activePkgs.sort((a, b) => a.amountVnd - b.amountVnd);
         setSinglePackages(activePkgs);
       }
@@ -69,7 +82,6 @@ export function TopUpScreen() {
     }
   };
 
-  // Gọi API khi vào màn hình
   useFocusEffect(
     useCallback(() => {
       fetchUserProfile();
@@ -80,15 +92,10 @@ export function TopUpScreen() {
 
   const onRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    await Promise.all([
-      fetchUserProfile(), 
-      fetchSubscriptionPlan(), 
-      fetchPricingPackages()
-    ]);
+    await Promise.all([fetchUserProfile(), fetchSubscriptionPlan(), fetchPricingPackages()]);
     setIsRefreshing(false);
   }, []);
 
-  // --- XỬ LÝ THANH TOÁN GÓI THÁNG ---
   const handleSubscription = async () => {
     if (!subscriptionData) return;
     setIsLoading(true);
@@ -105,7 +112,6 @@ export function TopUpScreen() {
     }
   };
 
-  // --- XỬ LÝ THANH TOÁN GÓI LẺ ---
   const handleOneTimePayment = async (amount: number) => {
     setIsLoading(true);
     try {
@@ -130,20 +136,24 @@ export function TopUpScreen() {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.foreground} />
         </TouchableOpacity>
-        <View style={{ alignItems: 'center' }}>
-           <Text style={[typography.h3, { color: colors.foreground }]}>Ưu Đãi</Text>
-           <Text style={{ color: colors.primary, fontSize: 14, fontWeight: '600' }}>
-             Số dư: {user?.dias || 0} 💎
-           </Text>
+        <View style={{ alignItems: "center" }}>
+          <Text style={[typography.h3, { color: colors.foreground }]}>Ưu Đãi</Text>
+          {/* --- SỬA HEADER: Thay 💎 bằng InlineGem --- */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <Text style={{ color: colors.primary, fontSize: 14, fontWeight: "600" }}>
+              Số dư: {user?.dias || 0}
+            </Text>
+            <InlineGem />
+          </View>
         </View>
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView 
+      <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />}
       >
-        {/* === 1. GÓI THÁNG (Load từ API) === */}
+        {/* === 1. GÓI THÁNG === */}
         <Text style={[typography.h4, styles.sectionTitle, { color: colors.foreground }]}>
           Gói Tháng
         </Text>
@@ -161,14 +171,21 @@ export function TopUpScreen() {
               <View style={styles.premiumHeader}>
                 <View>
                   <Text style={styles.premiumTitle}>{subscriptionData.planName}</Text>
-                  <Text style={styles.premiumSubtitle}>
-                    Nhận tổng {subscriptionData.dailyDias * subscriptionData.durationDays} 💎 / {subscriptionData.durationDays} ngày
-                  </Text>
+                  
+                  {/* --- SỬA SUBTITLE: Thay 💎 bằng InlineGem --- */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', marginTop: 4 }}>
+                    <Text style={styles.premiumSubtitleText}>
+                       Nhận tổng {(subscriptionData.dailyDias * subscriptionData.durationDays) + 500}{" "}
+                    </Text>
+                    <InlineGem />
+                    <Text style={styles.premiumSubtitleText}>
+                       {" "}/ {subscriptionData.durationDays} ngày
+                    </Text>
+                  </View>
+
                 </View>
                 <View style={styles.priceTag}>
-                  <Text style={styles.priceText}>
-                    {formatCurrency(subscriptionData.priceVnd)}
-                  </Text>
+                  <Text style={styles.priceText}>{formatCurrency(subscriptionData.priceVnd)}</Text>
                   <Text style={styles.durationText}>/ tháng</Text>
                 </View>
               </View>
@@ -177,12 +194,32 @@ export function TopUpScreen() {
 
               <View style={styles.featureList}>
                 {PREMIUM_FEATURES_UI.map((item, index) => {
-                  let displayText = item.text;
-                  if (index === 0) displayText = `Nhận ${subscriptionData.dailyDias} 💎 mỗi ngày`;
                   return (
                     <View key={index} style={styles.featureItem}>
                       <item.icon size={18} color="#FFD700" />
-                      <Text style={styles.featureText}>{displayText}</Text>
+                      
+                      {/* --- SỬA FEATURE LIST: Render custom text có chứa Gem --- */}
+                      {index === 0 ? (
+                         // Dòng 1: Nhận ngay 500
+                        <View style={styles.textRow}>
+                          <Text style={styles.featureText}>Nhận ngay 500 </Text>
+                          <InlineGem />
+                          <Text style={styles.featureText}> sau khi mua gói</Text>
+                        </View>
+                      ) : index === 1 ? (
+                        // Dòng 2: Nhận hằng ngày
+                        <View style={styles.textRow}>
+                          <Text style={styles.featureText}>
+                            Nhận {subscriptionData.dailyDias} 
+                          </Text>
+                          <View style={{ marginHorizontal: 2 }}><InlineGem /></View>
+                          <Text style={styles.featureText}>mỗi ngày</Text>
+                        </View>
+                      ) : (
+                        // Các dòng text thường
+                        <Text style={styles.featureText}>{item.text}</Text>
+                      )}
+
                     </View>
                   );
                 })}
@@ -191,14 +228,14 @@ export function TopUpScreen() {
           </TouchableOpacity>
         )}
 
-        {/* === 2. GÓI MUA LẺ (Load từ API) === */}
+        {/* === 2. GÓI MUA LẺ === */}
         <Text style={[typography.h4, styles.sectionTitle, { color: colors.foreground, marginTop: 32 }]}>
           Gói Mua Lẻ
         </Text>
 
         <View style={styles.packageList}>
           {singlePackages.length === 0 && !isRefreshing ? (
-             <ActivityIndicator color={colors.primary} style={{ marginTop: 20 }} />
+            <ActivityIndicator color={colors.primary} style={{ marginTop: 20 }} />
           ) : (
             singlePackages.map((pkg) => (
               <TouchableOpacity
@@ -207,8 +244,9 @@ export function TopUpScreen() {
                 onPress={() => handleOneTimePayment(pkg.amountVnd)}
               >
                 <View style={styles.packageLeft}>
+                  {/* IconBox với background nhạt và icon xanh */}
                   <View style={styles.iconBox}>
-                    <MaterialIcons name="diamond" size={24} color="#2980B9" />
+                     <Gem size={24} color="#4b98ff" fill="#4b98ff" />
                   </View>
                   <View style={{ marginLeft: 12 }}>
                     <Text style={[typography.h4, { color: colors.foreground }]}>
@@ -272,10 +310,10 @@ const styles = StyleSheet.create({
     color: "#FFD700",
     letterSpacing: 0.5,
   },
-  premiumSubtitle: {
+  // Style text cho subtitle trong Premium Card
+  premiumSubtitleText: {
     color: "#FFF",
     fontSize: 14,
-    marginTop: 4,
     opacity: 0.9,
   },
   priceTag: {
@@ -301,6 +339,8 @@ const styles = StyleSheet.create({
   },
   featureList: { gap: 10 },
   featureItem: { flexDirection: "row", alignItems: "center", gap: 12 },
+  // Helper style để căn text và icon cùng dòng
+  textRow: { flexDirection: 'row', alignItems: 'center' },
   featureText: { color: "#FFF", fontSize: 14, fontWeight: "500" },
   packageList: { gap: 12 },
   packageItem: {
@@ -321,6 +361,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     justifyContent: "center",
     alignItems: "center",
+   
   },
   packageRight: {
     backgroundColor: "#F0F8FF",
